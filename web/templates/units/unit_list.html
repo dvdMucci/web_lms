@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}Unidades - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="fas fa-book-open"></i> Unidades del Curso</h1>
+        <p class="text-muted">{{ course.title }}</p>
+    </div>
+    <div>
+        {% if can_manage %}
+        <a href="{% url 'units:unit_create' course.id %}" class="btn btn-success">
+            <i class="fas fa-plus"></i> Crear Unidad
+        </a>
+        {% endif %}
+        <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Curso
+        </a>
+    </div>
+</div>
+
+{% if units %}
+<div class="row">
+    {% for unit in units %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{{ unit.title }}</h5>
+                {% if unit.is_paused %}
+                <span class="badge bg-warning">
+                    <i class="fas fa-pause"></i> En Pausa
+                </span>
+                {% else %}
+                <span class="badge bg-success">
+                    <i class="fas fa-check"></i> Activa
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ unit.description|truncatewords:20 }}</p>
+                <hr>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-sort-numeric-up"></i> 
+                        <strong>Orden:</strong> {{ unit.order }}
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar"></i> 
+                        <strong>Creado:</strong> {{ unit.created_at|date:"d/m/Y" }}
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-file"></i> 
+                        <strong>Materiales:</strong> {{ unit.materials.count }}
+                    </small>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'units:unit_detail' course.id unit.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye"></i> Ver Detalles
+                    </a>
+                    {% if can_manage %}
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'units:unit_edit' course.id unit.id %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-edit"></i> Editar
+                        </a>
+                        <form method="post" action="{% url 'units:unit_pause' course.id unit.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-{% if unit.is_paused %}success{% else %}warning{% endif %} btn-sm">
+                                <i class="fas fa-{% if unit.is_paused %}play{% else %}pause{% endif %}"></i> 
+                                {% if unit.is_paused %}Reanudar{% else %}Pausar{% endif %}
+                            </button>
+                        </form>
+                        <a href="{% url 'units:unit_delete' course.id unit.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center mt-5">
+    <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+    <h4>No hay unidades en este curso</h4>
+    <p class="text-muted">
+        {% if can_manage %}
+        Comienza creando la primera unidad del curso.
+        {% else %}
+        Aún no hay unidades disponibles.
+        {% endif %}
+    </p>
+    {% if can_manage %}
+    <a href="{% url 'units:unit_create' course.id %}" class="btn btn-success mt-3">
+        <i class="fas fa-plus"></i> Crear Primera Unidad
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

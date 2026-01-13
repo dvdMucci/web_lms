@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'accounts',
     'courses',
+    'units',
     'materials',
     'core',
     'django.contrib.admin',

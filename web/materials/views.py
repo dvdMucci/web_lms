@@ -2,7 +2,9 @@ from rest_framework import generics, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import HttpResponse, Http404
 from django.core.files.storage import default_storage
 from .models import Material
@@ -123,9 +125,76 @@ class MaterialDownloadView(APIView):
                         f.read(),
                         content_type='application/octet-stream'
                     )
-                    response['Content-Disposition'] = f'attachment; filename="{material.file.name.split("/")[-1]}"'
+                    # Use original filename if available, otherwise use stored filename
+                    filename = material.original_filename if material.original_filename else material.file.name.split("/")[-1]
+                    response['Content-Disposition'] = f'attachment; filename="{filename}"'
                     return response
             except FileNotFoundError:
                 raise Http404("Archivo no encontrado.")
 
         raise Http404("Archivo no encontrado.")
+
+
+@login_required
+def material_list(request, course_id):
+    """List all materials for a course (dashboard view)"""
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Check if user can view the course
+    can_view = False
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        can_view = True
+    elif request.user.is_student():
+        # Check if student is enrolled and approved
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            course=course,
+            status='approved'
+        ).first()
+        can_view = enrollment is not None
+    
+    if not can_view:
+        messages.error(request, 'No tienes permiso para ver los materiales de este curso.')
+        if request.user.is_student():
+            return redirect('course_list_student')
+        else:
+            return redirect('course_list_teacher')
+    
+    # Get materials based on user permissions
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        # Teachers and admins see all materials
+        materials = Material.objects.filter(course=course).order_by('-uploaded_at')
+    else:
+        # Students see materials based on visibility
+        enrolled = Enrollment.objects.filter(
+            student=request.user,
+            course=course,
+            status='approved'
+        ).exists()
+        
+        if enrolled:
+            # Show public and enrolled materials
+            materials = Material.objects.filter(
+                course=course,
+                visibility__in=['public', 'enrolled']
+            ).order_by('-uploaded_at')
+        else:
+            # Show only public materials
+            materials = Material.objects.filter(
+                course=course,
+                visibility='public'
+            ).order_by('-uploaded_at')
+    
+    # Check if user can manage materials
+    can_manage = (
+        course.instructor == request.user or
+        request.user in course.collaborators.all() or
+        request.user.user_type == 'admin'
+    )
+    
+    context = {
+        'course': course,
+        'materials': materials,
+        'can_manage': can_manage,
+    }
+    return render(request, 'materials/material_list.html', context)

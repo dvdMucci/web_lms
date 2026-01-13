@@ -62,7 +62,10 @@
                         {% endif %}
 
                         <div class="d-flex justify-content-between">
+                            {% comment %}
                             <a href="{% url 'assignment_list' course.id %}" class="btn btn-outline-secondary">
+                            {% endcomment %}
+                            <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left"></i> Cancelar
                             </a>
                             <button type="submit" class="btn btn-primary">

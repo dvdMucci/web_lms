@@ -5,10 +5,13 @@
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-file"></i> Materiales - {{ course.title }}</h2>
-        {% if user.is_teacher or user.user_type == 'admin' %}
-        <a href="{% url 'material_upload' course.id %}" class="btn btn-primary">
-            <i class="fas fa-upload"></i> Subir Material
+        <div>
+            <h2><i class="fas fa-file"></i> Materiales</h2>
+            <p class="text-muted">{{ course.title }}</p>
+        </div>
+        {% if can_manage %}
+        <a href="{% url 'units:unit_list' course.id %}" class="btn btn-success">
+            <i class="fas fa-book-open"></i> Ver Unidades
         </a>
         {% endif %}
     </div>
@@ -18,9 +21,30 @@
         {% for material in materials %}
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card h-100 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">{{ material.title }}</h5>
+                    {% if material.material_type == 'file' %}
+                    <span class="badge bg-primary">
+                        <i class="fas fa-file"></i> Archivo
+                    </span>
+                    {% else %}
+                    <span class="badge bg-info">
+                        <i class="fas fa-link"></i> Enlace
+                    </span>
+                    {% endif %}
+                </div>
                 <div class="card-body">
-                    <h5 class="card-title">{{ material.title }}</h5>
-                    <p class="card-text text-truncate">{{ material.description }}</p>
+                    {% if material.description %}
+                    <p class="card-text">{{ material.description|truncatewords:15 }}</p>
+                    {% endif %}
+
+                    {% if material.material_type == 'file' and material.original_filename %}
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="fas fa-file"></i> {{ material.original_filename }}
+                        </small>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-2">
                         <small class="text-muted">
@@ -34,7 +58,7 @@
                         </small>
                     </div>
 
-                    {% if material.file_size %}
+                    {% if material.material_type == 'file' and material.file_size %}
                     <div class="mb-2">
                         <small class="text-muted">
                             <i class="fas fa-weight"></i> {{ material.file_size|filesizeformat }}
@@ -42,27 +66,29 @@
                     </div>
                     {% endif %}
 
-                    <div class="mb-3">
-                        <span class="badge bg-{{ material.visibility|visibility_badge }}">
+                    {% if material.unit %}
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="fas fa-book-open"></i> Unidad: {{ material.unit.title }}
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <span class="badge bg-secondary">
                             {{ material.get_visibility_display }}
                         </span>
                     </div>
                 </div>
                 <div class="card-footer">
-                    <a href="{% url 'material_download' material.id %}" class="btn btn-outline-primary btn-sm">
+                    {% if material.material_type == 'file' %}
+                    <a href="{% url 'materials:material-download' material.id %}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-download"></i> Descargar
                     </a>
-                    {% if user.is_teacher or user.user_type == 'admin' %}
-                    <a href="{% url 'material_edit' material.id %}" class="btn btn-outline-warning btn-sm">
-                        <i class="fas fa-edit"></i> Editar
+                    {% else %}
+                    <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-info btn-sm external-link-warning" data-link-url="{{ material.link_url }}">
+                        <i class="fas fa-external-link-alt"></i> Abrir Enlace
                     </a>
-                    <form method="post" action="{% url 'material_delete' material.id %}" class="d-inline"
-                          onsubmit="return confirm('¿Estás seguro de que quieres eliminar este material?')">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                            <i class="fas fa-trash"></i> Eliminar
-                        </button>
-                    </form>
                     {% endif %}
                 </div>
             </div>
@@ -74,9 +100,9 @@
         <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
         <h4>No hay materiales disponibles</h4>
         <p class="text-muted">No se encontraron materiales para este curso.</p>
-        {% if user.is_teacher or user.user_type == 'admin' %}
-        <a href="{% url 'material_upload' course.id %}" class="btn btn-primary">
-            <i class="fas fa-upload"></i> Subir el primer material
+        {% if can_manage %}
+        <a href="{% url 'units:unit_list' course.id %}" class="btn btn-primary">
+            <i class="fas fa-book-open"></i> Ver Unidades
         </a>
         {% endif %}
     </div>
@@ -84,8 +110,26 @@
 
     <div class="mt-4">
         <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Volver al curso
+            <i class="fas fa-arrow-left"></i> Volver al Curso
         </a>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+// Warning for external links
+document.querySelectorAll('.external-link-warning').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const url = this.getAttribute('data-link-url') || this.getAttribute('href');
+        const message = 'Estás a punto de salir de la plataforma y acceder a un enlace externo.\n\n' +
+                       'URL: ' + url + '\n\n' +
+                       '¿Deseas continuar?';
+        if (confirm(message)) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}
