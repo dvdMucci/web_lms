@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Agregar Colaborador{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h4><i class="fas fa-user-plus"></i> Agregar Colaborador</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Nota:</strong> Solo puedes agregar estudiantes que estén inscritos y aprobados en el curso.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.collaborator_username.id_for_label }}" class="form-label">{{ form.collaborator_username.label }}</label>
+                            {{ form.collaborator_username }}
+                            {% if form.collaborator_username.errors %}
+                                <div class="text-danger">{{ form.collaborator_username.errors }}</div>
+                            {% endif %}
+                            {% if form.collaborator_username.help_text %}
+                                <small class="form-text text-muted">{{ form.collaborator_username.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'assignments:submission_detail' course.id unit.id assignment.id submission.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-info">
+                                <i class="fas fa-user-plus"></i> Agregar Colaborador
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

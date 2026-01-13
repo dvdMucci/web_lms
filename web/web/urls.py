@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/courses/', include('courses.urls')), # Incluye las URLs de la API de 'courses'
     path('api/', include('materials.urls')), # Incluye las URLs de la aplicación 'materials'
     path('units/', include('units.urls')), # Incluye las URLs de la aplicación 'units'
+    path('', include('assignments.urls')), # Incluye las URLs de la aplicación 'assignments'
     
     # Dashboard URLs for courses
     path('courses/', include([

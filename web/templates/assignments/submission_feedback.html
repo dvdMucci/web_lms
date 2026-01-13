@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Dar Feedback{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="fas fa-comment"></i> Dar Feedback - {{ submission.student.get_full_name|default:submission.student.username }}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>Información de la Entrega:</h6>
+                        <p><strong>Estudiante:</strong> {{ submission.student.get_full_name|default:submission.student.username }}</p>
+                        <p><strong>Versión:</strong> v{{ submission.version }}</p>
+                        <p><strong>Archivo:</strong> {{ submission.original_filename|default:"Archivo" }}</p>
+                        <p><strong>Fecha de Entrega:</strong> {{ submission.submitted_at|date:"d/m/Y H:i" }}</p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.feedback.id_for_label }}" class="form-label">{{ form.feedback.label }}</label>
+                            {{ form.feedback }}
+                            {% if form.feedback.errors %}
+                                <div class="text-danger">{{ form.feedback.errors }}</div>
+                            {% endif %}
+                            {% if form.feedback.help_text %}
+                                <small class="form-text text-muted">{{ form.feedback.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            {{ form.needs_resubmission }}
+                            <label class="form-check-label" for="{{ form.needs_resubmission.id_for_label }}">
+                                {{ form.needs_resubmission.label }}
+                            </label>
+                            {% if form.needs_resubmission.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.needs_resubmission.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'assignments:submission_detail' course.id unit.id assignment.id submission.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Feedback
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

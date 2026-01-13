@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{% if form.instance.pk %}Editar Tarea{% else %}Crear Tarea{% endif %}{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -9,9 +9,8 @@
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h4>
-                        <i class="fas fa-tasks"></i>
-                        {% if form.instance.pk %}Editar Tarea{% else %}Crear Nueva Tarea{% endif %}
-                        - {{ course.title }}
+                        <i class="fas fa-tasks"></i> {{ title }}
+                        - {{ unit.title }}
                     </h4>
                 </div>
                 <div class="card-body">
@@ -19,37 +18,74 @@
                         {% csrf_token %}
 
                         <div class="mb-3">
-                            <label for="{{ form.title.id_for_label }}" class="form-label">Título</label>
+                            <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
                             {{ form.title }}
                             {% if form.title.errors %}
                                 <div class="text-danger">{{ form.title.errors }}</div>
                             {% endif %}
+                            {% if form.title.help_text %}
+                                <small class="form-text text-muted">{{ form.title.help_text }}</small>
+                            {% endif %}
                         </div>
 
                         <div class="mb-3">
-                            <label for="{{ form.description.id_for_label }}" class="form-label">Descripción</label>
+                            <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
                             {{ form.description }}
                             {% if form.description.errors %}
                                 <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                            {% if form.description.help_text %}
+                                <small class="form-text text-muted">{{ form.description.help_text }}</small>
                             {% endif %}
                         </div>
 
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="{{ form.due_date.id_for_label }}" class="form-label">Fecha Límite</label>
+                                    <label for="{{ form.due_date.id_for_label }}" class="form-label">{{ form.due_date.label }}</label>
                                     {{ form.due_date }}
                                     {% if form.due_date.errors %}
                                         <div class="text-danger">{{ form.due_date.errors }}</div>
+                                    {% endif %}
+                                    {% if form.due_date.help_text %}
+                                        <small class="form-text text-muted">{{ form.due_date.help_text }}</small>
                                     {% endif %}
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="{{ form.max_score.id_for_label }}" class="form-label">Puntuación Máxima</label>
-                                    {{ form.max_score }}
-                                    {% if form.max_score.errors %}
-                                        <div class="text-danger">{{ form.max_score.errors }}</div>
+                                    <label for="{{ form.final_date.id_for_label }}" class="form-label">{{ form.final_date.label }}</label>
+                                    {{ form.final_date }}
+                                    {% if form.final_date.errors %}
+                                        <div class="text-danger">{{ form.final_date.errors }}</div>
+                                    {% endif %}
+                                    {% if form.final_date.help_text %}
+                                        <small class="form-text text-muted">{{ form.final_date.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3 form-check">
+                                    {{ form.allow_group_work }}
+                                    <label class="form-check-label" for="{{ form.allow_group_work.id_for_label }}">
+                                        {{ form.allow_group_work.label }}
+                                    </label>
+                                    {% if form.allow_group_work.help_text %}
+                                        <small class="form-text text-muted d-block">{{ form.allow_group_work.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3 form-check">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        {{ form.is_active.label }}
+                                    </label>
+                                    {% if form.is_active.help_text %}
+                                        <small class="form-text text-muted d-block">{{ form.is_active.help_text }}</small>
                                     {% endif %}
                                 </div>
                             </div>
@@ -62,10 +98,7 @@
                         {% endif %}
 
                         <div class="d-flex justify-content-between">
-                            {% comment %}
-                            <a href="{% url 'assignment_list' course.id %}" class="btn btn-outline-secondary">
-                            {% endcomment %}
-                            <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'assignments:assignment_list' course.id unit.id %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left"></i> Cancelar
                             </a>
                             <button type="submit" class="btn btn-primary">
@@ -74,20 +107,6 @@
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5><i class="fas fa-info-circle"></i> Información sobre Tareas</h5>
-                </div>
-                <div class="card-body">
-                    <ul class="list-unstyled">
-                        <li><i class="fas fa-check text-success"></i> Las tareas son visibles para todos los estudiantes inscritos en el curso</li>
-                        <li><i class="fas fa-check text-success"></i> Los estudiantes pueden entregar sus tareas hasta la fecha límite</li>
-                        <li><i class="fas fa-check text-success"></i> Puedes calificar las entregas después de la fecha límite</li>
-                        <li><i class="fas fa-check text-success"></i> Los estudiantes pueden ver sus calificaciones una vez que las hayas asignado</li>
-                    </ul>
                 </div>
             </div>
         </div>

@@ -217,6 +217,13 @@ def unit_detail(request, course_id, unit_id):
     from materials.models import Material
     materials = Material.objects.filter(unit=unit).order_by('-uploaded_at')
     
+    # Get assignments for this unit - teachers see all, students only active
+    from assignments.models import Assignment
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        assignments = Assignment.objects.filter(unit=unit).order_by('due_date', 'created_at')
+    else:
+        assignments = Assignment.objects.filter(unit=unit, is_active=True).order_by('due_date', 'created_at')
+    
     # Check if user can manage
     can_manage = unit.can_be_managed_by(request.user)
     
@@ -224,6 +231,7 @@ def unit_detail(request, course_id, unit_id):
         'course': course,
         'unit': unit,
         'materials': materials,
+        'assignments': assignments,
         'can_manage': can_manage,
     }
     return render(request, 'units/unit_detail.html', context)

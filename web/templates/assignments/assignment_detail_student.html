@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ assignment.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-tasks"></i> {{ assignment.title }}</h1>
+            <p class="text-muted">{{ unit.title }} - {{ course.title }}</p>
+        </div>
+        <div>
+            <a href="{% url 'assignments:assignment_list' course.id unit.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Tareas
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Información de la Tarea</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>Descripción:</h6>
+                        <p>{{ assignment.description|linebreaks }}</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong><i class="fas fa-calendar-times"></i> Fecha Límite:</strong> {{ assignment.due_date|date:"d/m/Y H:i" }}</p>
+                            {% if assignment.final_date %}
+                            <p><strong><i class="fas fa-calendar-check"></i> Fecha Final:</strong> {{ assignment.final_date|date:"d/m/Y H:i" }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong><i class="fas fa-users"></i> Trabajo en Grupo:</strong> 
+                                {% if assignment.allow_group_work %}
+                                <span class="badge bg-success">Permitido</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Individual</span>
+                                {% endif %}
+                            </p>
+                            {% if is_late %}
+                            <p><span class="badge bg-warning">
+                                <i class="fas fa-exclamation-triangle"></i> La fecha límite ha pasado
+                            </span></p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if assignment.allow_group_work and collaborators %}
+            <div class="card shadow mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-users"></i> Colaboradores</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for collaborator in collaborators %}
+                        <li class="list-group-item">
+                            <i class="fas fa-user"></i> {{ collaborator.student.get_full_name|default:collaborator.student.username }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5><i class="fas fa-file-upload"></i> Mis Entregas</h5>
+                </div>
+                <div class="card-body">
+                    {% if submissions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Versión</th>
+                                    <th>Archivo</th>
+                                    <th>Fecha de Entrega</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for submission in submissions %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-primary">v{{ submission.version }}</span>
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-file"></i> {{ submission.original_filename|default:"Archivo" }}
+                                    </td>
+                                    <td>
+                                        {{ submission.submitted_at|date:"d/m/Y H:i" }}
+                                        {% if submission.is_late %}
+                                        <br><span class="badge bg-warning">
+                                            <i class="fas fa-exclamation-triangle"></i> Fuera de Término
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if submission.status == 'submitted' %}
+                                        <span class="badge bg-info">Entregado</span>
+                                        {% elif submission.status == 'returned' %}
+                                        <span class="badge bg-warning">Devuelto</span>
+                                        {% elif submission.status == 'resubmitted' %}
+                                        <span class="badge bg-success">Reentregado</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Pendiente</span>
+                                        {% endif %}
+                                        {% if submission.needs_resubmission %}
+                                        <br><span class="badge bg-danger mt-1">Requiere Reentrega</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'assignments:submission_view' course.id unit.id assignment.id submission.id %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver archivo">
+                                                <i class="fas fa-eye"></i> Ver
+                                            </a>
+                                            <a href="{% url 'assignments:submission_detail' course.id unit.id assignment.id submission.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                                <i class="fas fa-info-circle"></i>
+                                            </a>
+                                            <a href="{% url 'assignments:submission_download' course.id unit.id assignment.id submission.id %}" class="btn btn-sm btn-outline-secondary" title="Descargar">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">Aún no has entregado esta tarea.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-upload"></i> Entregar Tarea</h5>
+                </div>
+                <div class="card-body">
+                    {% if can_submit %}
+                    <p>Puedes subir tu entrega. Los archivos permitidos son:</p>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> Documentos de Office (doc, docx, ppt, pptx, xls, xlsx)</li>
+                        <li><i class="fas fa-check text-success"></i> PDF</li>
+                        <li><i class="fas fa-check text-success"></i> Archivos de Canva (PDF, PNG, JPG)</li>
+                    </ul>
+                    <p class="text-muted"><small>Máximo 50MB por archivo</small></p>
+                    <a href="{% url 'assignments:submission_upload' course.id unit.id assignment.id %}" class="btn btn-success w-100">
+                        <i class="fas fa-upload"></i> Subir Entrega
+                    </a>
+                    {% if is_late %}
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>Advertencia:</strong> La fecha límite ha pasado. Tu entrega será marcada como fuera de término.
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-ban"></i> 
+                        Ya no se pueden subir archivos para esta tarea.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if assignment.allow_group_work and submissions %}
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5><i class="fas fa-user-plus"></i> Agregar Colaborador</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Puedes agregar otros estudiantes como colaboradores en tu entrega.</p>
+                    <a href="{% url 'assignments:collaborator_add' course.id unit.id assignment.id submissions.0.id %}" class="btn btn-info w-100">
+                        <i class="fas fa-user-plus"></i> Agregar Colaborador
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

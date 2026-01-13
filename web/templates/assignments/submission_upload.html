@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Subir Entrega{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4><i class="fas fa-upload"></i> Subir Entrega - {{ assignment.title }}</h4>
+                </div>
+                <div class="card-body">
+                    {% if is_late %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>Advertencia:</strong> La fecha límite ha pasado. Tu entrega será marcada como fuera de término.
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <h6>Información de la Tarea:</h6>
+                        <p><strong>Título:</strong> {{ assignment.title }}</p>
+                        <p><strong>Fecha Límite:</strong> {{ assignment.due_date|date:"d/m/Y H:i" }}</p>
+                        {% if assignment.final_date %}
+                        <p><strong>Fecha Final:</strong> {{ assignment.final_date|date:"d/m/Y H:i" }}</p>
+                        {% endif %}
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.file.id_for_label }}" class="form-label">{{ form.file.label }}</label>
+                            {{ form.file }}
+                            {% if form.file.errors %}
+                                <div class="text-danger">{{ form.file.errors }}</div>
+                            {% endif %}
+                            {% if form.file.help_text %}
+                                <small class="form-text text-muted">{{ form.file.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Tipos de archivo permitidos:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Documentos de Office: .doc, .docx, .ppt, .pptx, .xls, .xlsx</li>
+                                <li>PDF: .pdf</li>
+                                <li>Archivos de Canva: .pdf, .png, .jpg, .jpeg</li>
+                            </ul>
+                            <p class="mb-0 mt-2"><strong>Nota:</strong> Cada nueva entrega creará una nueva versión. Los archivos anteriores no se eliminarán.</p>
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'assignments:assignment_detail' course.id unit.id assignment.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-upload"></i> Subir Entrega
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
