@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}Foro del Curso{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-comments"></i> Foro - {{ course.title }}</h2>
+        <a href="{% url 'forum_create' course.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Nueva Discusión
+        </a>
+    </div>
+
+    {% if discussions %}
+    <div class="row">
+        {% for discussion in discussions %}
+        <div class="col-12 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h5 class="card-title mb-1">
+                                <a href="{% url 'forum_detail' discussion.id %}" class="text-decoration-none">
+                                    {{ discussion.title }}
+                                </a>
+                            </h5>
+                            <p class="card-text text-truncate mb-2">{{ discussion.content|truncatechars:150 }}</p>
+                            <div class="d-flex align-items-center text-muted small">
+                                <i class="fas fa-user me-1"></i>
+                                <span>{{ discussion.author.get_full_name|default:discussion.author.username }}</span>
+                                <span class="mx-2">•</span>
+                                <i class="fas fa-calendar me-1"></i>
+                                <span>{{ discussion.created_at|date:"d/m/Y H:i" }}</span>
+                                {% if discussion.is_pinned %}
+                                <span class="mx-2">•</span>
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-thumbtack"></i> Fijado
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="mb-1">
+                                <i class="fas fa-reply text-muted"></i>
+                                <span class="small text-muted">{{ discussion.replies_count }} respuestas</span>
+                            </div>
+                            {% if discussion.last_reply %}
+                            <div class="small text-muted">
+                                Última respuesta: {{ discussion.last_reply.created_at|date:"d/m/Y H:i" }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if user.is_teacher or user.user_type == 'admin' or user == discussion.author %}
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-end">
+                        {% if user.is_teacher or user.user_type == 'admin' %}
+                        <form method="post" action="{% url 'forum_pin' discussion.id %}" class="me-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-thumbtack"></i>
+                                {% if discussion.is_pinned %}Desfijar{% else %}Fijar{% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if user == discussion.author or user.is_teacher or user.user_type == 'admin' %}
+                        <a href="{% url 'forum_edit' discussion.id %}" class="btn btn-outline-primary btn-sm me-2">
+                            <i class="fas fa-edit"></i> Editar
+                        </a>
+                        <form method="post" action="{% url 'forum_delete' discussion.id %}"
+                              onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta discusión?')" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-trash"></i> Eliminar
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Paginación -->
+    {% if is_paginated %}
+    <nav aria-label="Paginación del foro">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center mt-5">
+        <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+        <h4>No hay discusiones aún</h4>
+        <p class="text-muted">Sé el primero en iniciar una conversación en el foro de este curso.</p>
+        <a href="{% url 'forum_create' course.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Iniciar Discusión
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al curso
+        </a>
+    </div>
+</div>
+{% endblock %}

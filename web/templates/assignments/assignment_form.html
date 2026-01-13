@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}Editar Tarea{% else %}Crear Tarea{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4>
+                        <i class="fas fa-tasks"></i>
+                        {% if form.instance.pk %}Editar Tarea{% else %}Crear Nueva Tarea{% endif %}
+                        - {{ course.title }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">Título</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="text-danger">{{ form.title.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Descripción</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.due_date.id_for_label }}" class="form-label">Fecha Límite</label>
+                                    {{ form.due_date }}
+                                    {% if form.due_date.errors %}
+                                        <div class="text-danger">{{ form.due_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.max_score.id_for_label }}" class="form-label">Puntuación Máxima</label>
+                                    {{ form.max_score }}
+                                    {% if form.max_score.errors %}
+                                        <div class="text-danger">{{ form.max_score.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'assignment_list' course.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}Guardar Cambios{% else %}Crear Tarea{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Información sobre Tareas</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> Las tareas son visibles para todos los estudiantes inscritos en el curso</li>
+                        <li><i class="fas fa-check text-success"></i> Los estudiantes pueden entregar sus tareas hasta la fecha límite</li>
+                        <li><i class="fas fa-check text-success"></i> Puedes calificar las entregas después de la fecha límite</li>
+                        <li><i class="fas fa-check text-success"></i> Los estudiantes pueden ver sus calificaciones una vez que las hayas asignado</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

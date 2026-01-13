@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Cursos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-book"></i> Cursos Disponibles</h2>
+        {% if user.is_teacher or user.user_type == 'admin' %}
+        <a href="{% url 'course_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Crear Curso
+        </a>
+        {% endif %}
+    </div>
+
+    {% if courses %}
+    <div class="row">
+        {% for course in courses %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ course.title }}</h5>
+                    <p class="card-text text-truncate">{{ course.description }}</p>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            <i class="fas fa-user"></i> Instructor: {{ course.instructor.get_full_name|default:course.instructor.username }}
+                        </small>
+                    </p>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            <i class="fas fa-users"></i> Inscritos: {{ course.current_enrollments }}/{{ course.enrollment_limit }}
+                        </small>
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye"></i> Ver Detalles
+                    </a>
+                    {% if user.is_student %}
+                        {% if course|enrolled:user %}
+                        <span class="badge bg-success">Inscrito</span>
+                        {% else %}
+                        <form method="post" action="{% url 'enrollment_create' course.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="fas fa-plus"></i> Inscribirse
+                            </button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center mt-5">
+        <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+        <h4>No hay cursos disponibles</h4>
+        <p class="text-muted">No se encontraron cursos en este momento.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

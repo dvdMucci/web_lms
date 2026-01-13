@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis Cursos Inscritos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-user-check"></i> Mis Cursos Inscritos</h1>
+    <a href="{% url 'course_list_student' %}" class="btn btn-outline-primary">
+        <i class="fas fa-book"></i> Ver Cursos Disponibles
+    </a>
+</div>
+
+{% if enrollments %}
+<div class="row">
+    {% for enrollment in enrollments %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{{ enrollment.course.title }}</h5>
+                {% if enrollment.status == 'approved' %}
+                <span class="badge bg-success">
+                    <i class="fas fa-check"></i> Aprobado
+                </span>
+                {% elif enrollment.status == 'pending' %}
+                <span class="badge bg-warning">
+                    <i class="fas fa-clock"></i> Pendiente
+                </span>
+                {% elif enrollment.status == 'rejected' %}
+                <span class="badge bg-danger">
+                    <i class="fas fa-times"></i> Rechazado
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ enrollment.course.description|truncatewords:25 }}</p>
+                <hr>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> 
+                        <strong>Instructor:</strong> 
+                        {{ enrollment.course.instructor.get_full_name|default:enrollment.course.instructor.username }}
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-user-graduate"></i> 
+                        <strong>Inscritos:</strong> 
+                        {{ enrollment.course.current_enrollments }}/{{ enrollment.course.enrollment_limit }}
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar-check"></i> 
+                        <strong>Solicitado el:</strong> 
+                        {{ enrollment.enrolled_at|date:"d/m/Y" }}
+                    </small>
+                </div>
+                {% if enrollment.status == 'pending' %}
+                <div class="alert alert-warning mb-2 py-2">
+                    <small>
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Tu inscripción está pendiente de aprobación.</strong><br>
+                        El instructor o un docente colaborador revisará tu solicitud.
+                    </small>
+                </div>
+                {% elif enrollment.status == 'rejected' %}
+                <div class="alert alert-danger mb-2 py-2">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>Tu inscripción fue rechazada.</strong>
+                    </small>
+                </div>
+                {% endif %}
+                {% if enrollment.course.schedule %}
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-clock"></i> 
+                        <strong>Horario:</strong> 
+                        {{ enrollment.course.schedule|truncatewords:10 }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <div class="d-grid">
+                    {% if enrollment.status == 'approved' %}
+                    <a href="{% url 'course_detail' enrollment.course.id %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right"></i> Acceder al Curso
+                    </a>
+                    {% elif enrollment.status == 'pending' %}
+                    <button class="btn btn-secondary btn-sm" disabled>
+                        <i class="fas fa-clock"></i> Esperando Aprobación
+                    </button>
+                    {% elif enrollment.status == 'rejected' %}
+                    <button class="btn btn-outline-secondary btn-sm" disabled>
+                        <i class="fas fa-times"></i> Inscripción Rechazada
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center mt-5">
+    <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+    <h4>No estás inscrito en ningún curso</h4>
+    <p class="text-muted">Explora los cursos disponibles e inscríbete en los que te interesen.</p>
+    <a href="{% url 'course_list_student' %}" class="btn btn-primary mt-3">
+        <i class="fas fa-book"></i> Ver Cursos Disponibles
+    </a>
+</div>
+{% endif %}
+{% endblock %}

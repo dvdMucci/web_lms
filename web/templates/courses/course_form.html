@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-book"></i> {{ title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">
+                            {{ form.title.label }}
+                        </label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger small">{{ form.title.errors }}</div>
+                        {% endif %}
+                        {% if form.title.help_text %}
+                            <div class="form-text">{{ form.title.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">
+                            {{ form.description.label }}
+                        </label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small">{{ form.description.errors }}</div>
+                        {% endif %}
+                        {% if form.description.help_text %}
+                            <div class="form-text">{{ form.description.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.enrollment_limit.id_for_label }}" class="form-label">
+                                    {{ form.enrollment_limit.label }}
+                                </label>
+                                {{ form.enrollment_limit }}
+                                {% if form.enrollment_limit.errors %}
+                                    <div class="text-danger small">{{ form.enrollment_limit.errors }}</div>
+                                {% endif %}
+                                {% if form.enrollment_limit.help_text %}
+                                    <div class="form-text">{{ form.enrollment_limit.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.schedule.id_for_label }}" class="form-label">
+                                    {{ form.schedule.label }}
+                                </label>
+                                {{ form.schedule }}
+                                {% if form.schedule.errors %}
+                                    <div class="text-danger small">{{ form.schedule.errors }}</div>
+                                {% endif %}
+                                {% if form.schedule.help_text %}
+                                    <div class="form-text">{{ form.schedule.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.collaborators.id_for_label }}" class="form-label">
+                            {{ form.collaborators.label }}
+                        </label>
+                        {{ form.collaborators }}
+                        {% if form.collaborators.errors %}
+                            <div class="text-danger small">{{ form.collaborators.errors }}</div>
+                        {% endif %}
+                        {% if form.collaborators.help_text %}
+                            <div class="form-text">{{ form.collaborators.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Guardar Curso
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

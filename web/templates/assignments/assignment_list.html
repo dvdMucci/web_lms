@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Tareas del Curso{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-tasks"></i> Tareas - {{ course.title }}</h2>
+        {% if user.is_teacher or user.user_type == 'admin' %}
+        <a href="{% url 'assignment_create' course.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Crear Tarea
+        </a>
+        {% endif %}
+    </div>
+
+    {% if assignments %}
+    <div class="row">
+        {% for assignment in assignments %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ assignment.title }}</h5>
+                    <p class="card-text text-truncate">{{ assignment.description }}</p>
+
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i> Fecha límite: {{ assignment.due_date|date:"d/m/Y H:i" }}
+                        </small>
+                    </div>
+
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            <i class="fas fa-star"></i> Puntuación máxima: {{ assignment.max_score }} puntos
+                        </small>
+                    </div>
+
+                    {% if user.is_student %}
+                        {% with submission=assignment|user_submission:user %}
+                        {% if submission %}
+                        <div class="mb-2">
+                            <span class="badge bg-success">
+                                <i class="fas fa-check"></i> Entregado
+                            </span>
+                            {% if submission.grade %}
+                            <span class="badge bg-info ms-1">
+                                Nota: {{ submission.grade }}/{{ assignment.max_score }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="mb-2">
+                            {% if assignment.due_date|timeuntil > 0 %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-clock"></i> Pendiente
+                            </span>
+                            {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-exclamation-triangle"></i> Vencida
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'assignment_detail' assignment.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye"></i> Ver Detalles
+                    </a>
+                    {% if user.is_student %}
+                        {% with submission=assignment|user_submission:user %}
+                        {% if not submission %}
+                        <a href="{% url 'assignment_submit' assignment.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-upload"></i> Entregar
+                        </a>
+                        {% else %}
+                        <a href="{% url 'submission_detail' submission.id %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-file"></i> Mi Entrega
+                        </a>
+                        {% endif %}
+                        {% endwith %}
+                    {% endif %}
+                    {% if user.is_teacher or user.user_type == 'admin' %}
+                    <a href="{% url 'assignment_edit' assignment.id %}" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center mt-5">
+        <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+        <h4>No hay tareas disponibles</h4>
+        <p class="text-muted">No se encontraron tareas para este curso.</p>
+        {% if user.is_teacher or user.user_type == 'admin' %}
+        <a href="{% url 'assignment_create' course.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Crear primera tarea
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al curso
+        </a>
+    </div>
+</div>
+{% endblock %}

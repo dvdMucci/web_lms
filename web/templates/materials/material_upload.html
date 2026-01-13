@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}Subir Material{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="fas fa-upload"></i> Subir Material - {{ course.title }}</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">Título</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="text-danger">{{ form.title.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Descripción</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.file.id_for_label }}" class="form-label">Archivo</label>
+                            {{ form.file }}
+                            {% if form.file.errors %}
+                                <div class="text-danger">{{ form.file.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Tipos de archivo permitidos: PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, JPG, PNG, etc.
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.visibility.id_for_label }}" class="form-label">Visibilidad</label>
+                            {{ form.visibility }}
+                            {% if form.visibility.errors %}
+                                <div class="text-danger">{{ form.visibility.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <strong>Público:</strong> Visible para todos<br>
+                                <strong>Inscritos:</strong> Solo estudiantes inscritos en el curso<br>
+                                <strong>Privado:</strong> Solo tú y administradores
+                            </small>
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'material_list' course.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i> Subir Material
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Información Importante</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> Solo instructores y administradores pueden subir materiales</li>
+                        <li><i class="fas fa-check text-success"></i> Los archivos se almacenan de forma segura en el servidor</li>
+                        <li><i class="fas fa-check text-success"></i> Los estudiantes solo pueden descargar materiales según la visibilidad configurada</li>
+                        <li><i class="fas fa-check text-success"></i> Puedes editar o eliminar materiales después de subirlos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

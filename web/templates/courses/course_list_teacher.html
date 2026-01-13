@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block title %}Cursos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-book"></i> Cursos</h1>
+    <a href="{% url 'course_create' %}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Crear Curso
+    </a>
+</div>
+
+{% if courses %}
+<div class="row">
+    {% for course in courses %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{{ course.title }}</h5>
+                {% if course.is_paused %}
+                <span class="badge bg-warning">
+                    <i class="fas fa-pause"></i> En Pausa
+                </span>
+                {% elif not course.is_active %}
+                <span class="badge bg-danger">
+                    <i class="fas fa-times"></i> Inactivo
+                </span>
+                {% else %}
+                <span class="badge bg-success">
+                    <i class="fas fa-check"></i> Activo
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="card-text text-truncate">{{ course.description|truncatewords:20 }}</p>
+                <hr>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> 
+                        <strong>Instructor:</strong> 
+                        {{ course.instructor.get_full_name|default:course.instructor.username }}
+                        {% if course.instructor == user %}
+                            <span class="badge bg-primary">Tú</span>
+                        {% endif %}
+                    </small>
+                </div>
+                {% if course.collaborators.exists %}
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-users"></i> 
+                        <strong>Colaboradores:</strong> 
+                        {{ course.collaborators.count }}
+                        {% if user in course.collaborators.all and course.instructor != user %}
+                            <span class="badge bg-info ms-1">Tú</span>
+                        {% endif %}
+                    </small>
+                </div>
+                {% endif %}
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-user-graduate"></i> 
+                        <strong>Inscritos:</strong> 
+                        {{ course.current_enrollments }}/{{ course.enrollment_limit }}
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar"></i> 
+                        <strong>Creado:</strong> 
+                        {{ course.created_at|date:"d/m/Y" }}
+                    </small>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye"></i> Ver Detalles
+                    </a>
+                    {% if course.instructor == user or user in course.collaborators.all or user.user_type == 'admin' %}
+                        {% if course.instructor == user or user.user_type == 'admin' %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'course_edit' course.id %}" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                            <form method="post" action="{% url 'course_pause' course.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-{% if course.is_paused %}success{% else %}warning{% endif %} btn-sm">
+                                    <i class="fas fa-{% if course.is_paused %}play{% else %}pause{% endif %}"></i> 
+                                    {% if course.is_paused %}Reanudar{% else %}Pausar{% endif %}
+                                </button>
+                            </form>
+                            <a href="{% url 'course_delete' course.id %}" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-trash"></i> Eliminar
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="text-muted text-center">
+                            <small><i class="fas fa-info-circle"></i> Eres colaborador - Solo lectura</small>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center mt-5">
+    <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+    <h4>No hay cursos disponibles</h4>
+    <p class="text-muted">Comienza creando tu primer curso.</p>
+    <a href="{% url 'course_create' %}" class="btn btn-success mt-3">
+        <i class="fas fa-plus"></i> Crear Curso
+    </a>
+</div>
+{% endif %}
+{% endblock %}

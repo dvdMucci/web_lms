@@ -1,0 +1,23 @@
+
+django
+mysqlclient  
+python-dotenv
+Pillow
+django-otp
+django-environ
+django-two-factor-auth[phonenumbers]
+qrcode
+pyotp
+django-otp
+djangorestframework
+openpyxl
+#python-telegram-bot
+torch
+
+# faster-whisper (usa CTranslate2 en CPU)
+#faster-whisper==1.0.3
+#ctranslate2>=4.3.1
+#huggingface-hub>=0.23.0
+
+# Utilidades y soporte de audio
+#numpy>=1.26.4

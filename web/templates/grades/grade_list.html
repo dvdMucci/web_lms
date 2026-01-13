@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Calificaciones{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-chart-line"></i> Calificaciones - {{ course.title }}</h2>
+        {% if user.is_teacher or user.user_type == 'admin' %}
+        <div>
+            <a href="{% url 'grade_export' course.id %}" class="btn btn-outline-success">
+                <i class="fas fa-download"></i> Exportar
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if user.is_student %}
+        <!-- Vista de estudiante -->
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-user"></i> Mis Calificaciones</h5>
+            </div>
+            <div class="card-body">
+                {% if grades %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Tarea</th>
+                                <th>Fecha de Entrega</th>
+                                <th>Calificación</th>
+                                <th>Comentarios</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for grade in grades %}
+                            <tr>
+                                <td>{{ grade.submission.assignment.title }}</td>
+                                <td>{{ grade.submission.submitted_at|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <span class="badge bg-{{ grade|grade_badge }}">
+                                        {{ grade.grade }}/{{ grade.submission.assignment.max_score }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if grade.comments %}
+                                        {{ grade.comments }}
+                                    {% else %}
+                                        <span class="text-muted">Sin comentarios</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Resumen de calificaciones -->
+                <div class="mt-4">
+                    <h6>Resumen</h6>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h4 class="text-primary">{{ grades|average_grade }}</h4>
+                                    <small>Promedio</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h4 class="text-success">{{ grades|highest_grade }}</h4>
+                                    <small>Máxima</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h4 class="text-warning">{{ grades|lowest_grade }}</h4>
+                                    <small>Mínima</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h4 class="text-info">{{ grades|count }}</h4>
+                                    <small>Tareas Calificadas</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5>Aún no tienes calificaciones</h5>
+                    <p class="text-muted">Las calificaciones aparecerán aquí una vez que el instructor califique tus entregas.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Vista de profesor/administrador -->
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Calificaciones de Estudiantes</h5>
+            </div>
+            <div class="card-body">
+                {% if student_grades %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Estudiante</th>
+                                {% for assignment in assignments %}
+                                <th>{{ assignment.title }}</th>
+                                {% endfor %}
+                                <th>Promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student_data in student_grades %}
+                            <tr>
+                                <td>{{ student_data.student.get_full_name|default:student_data.student.username }}</td>
+                                {% for grade in student_data.grades %}
+                                <td>
+                                    {% if grade %}
+                                        <span class="badge bg-{{ grade|grade_badge }}">
+                                            {{ grade.grade }}/{{ grade.submission.assignment.max_score }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td>
+                                    <strong>{{ student_data.average|floatformat:1 }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5>No hay calificaciones disponibles</h5>
+                    <p class="text-muted">Las calificaciones aparecerán aquí cuando los estudiantes entreguen tareas.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al curso
+        </a>
+    </div>
+</div>
+{% endblock %}
