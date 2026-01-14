@@ -156,6 +156,93 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- Comments Section -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-comments"></i> Comentarios y Conversación</h5>
+                </div>
+                <div class="card-body">
+                    {% if comments %}
+                    <div class="comments-section mb-4">
+                        {% for comment in comments %}
+                        <div class="comment mb-3 p-3 border rounded {% if comment.user.is_teacher or comment.user.user_type == 'admin' %}bg-light{% else %}bg-white{% endif %}">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>
+                                        {% if comment.user.is_teacher or comment.user.user_type == 'admin' %}
+                                            <i class="fas fa-chalkboard-teacher text-primary"></i>
+                                        {% else %}
+                                            <i class="fas fa-user-graduate text-success"></i>
+                                        {% endif %}
+                                        {{ comment.user.get_full_name|default:comment.user.username }}
+                                    </strong>
+                                    <small class="text-muted ms-2">
+                                        {{ comment.created_at|date:"d/m/Y H:i" }}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="comment-text">
+                                {{ comment.comment|linebreaks }}
+                            </div>
+                            
+                            <!-- Replies -->
+                            {% if comment.replies.all %}
+                            <div class="replies ms-4 mt-3">
+                                {% for reply in comment.replies.all %}
+                                <div class="reply mb-2 p-2 border rounded bg-white">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <div>
+                                            <strong>
+                                                {% if reply.user.is_teacher or reply.user.user_type == 'admin' %}
+                                                    <i class="fas fa-chalkboard-teacher text-primary"></i>
+                                                {% else %}
+                                                    <i class="fas fa-user-graduate text-success"></i>
+                                                {% endif %}
+                                                {{ reply.user.get_full_name|default:reply.user.username }}
+                                            </strong>
+                                            <small class="text-muted ms-2">
+                                                {{ reply.created_at|date:"d/m/Y H:i" }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="reply-text">
+                                        {{ reply.comment|linebreaks }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Aún no hay comentarios. Sé el primero en comentar.</p>
+                    {% endif %}
+
+                    {% if can_comment and comment_form %}
+                    <div class="add-comment mt-4">
+                        <h6><i class="fas fa-plus-circle"></i> Agregar Comentario</h6>
+                        <form method="post" class="mt-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="add_comment" value="1">
+                            <div class="mb-3">
+                                {{ comment_form.comment }}
+                                {% if comment_form.comment.errors %}
+                                    <div class="text-danger">{{ comment_form.comment.errors }}</div>
+                                {% endif %}
+                                {% if comment_form.comment.help_text %}
+                                    <small class="form-text text-muted">{{ comment_form.comment.help_text }}</small>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i> Enviar Comentario
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         <div class="col-lg-4">
             {% if can_manage %}

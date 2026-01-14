@@ -284,3 +284,62 @@ class AssignmentCollaborator(models.Model):
         if self.student_id is not None:
             self.clean()
         super().save(*args, **kwargs)
+
+
+class AssignmentComment(models.Model):
+    """Model for comments/chat on assignment submissions"""
+    submission = models.ForeignKey(
+        AssignmentSubmission,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        verbose_name='Entrega'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='assignment_comments',
+        verbose_name='Usuario'
+    )
+    comment = models.TextField(verbose_name='Comentario')
+    parent_comment = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+        verbose_name='Comentario Padre'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
+
+    class Meta:
+        verbose_name = 'Comentario de Entrega'
+        verbose_name_plural = 'Comentarios de Entregas'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.submission} - {self.created_at}"
+
+    def clean(self):
+        """Validate that user can comment on this submission"""
+        if self.user_id is not None and self.submission_id is not None:
+            User = get_user_model()
+            try:
+                user = User.objects.get(pk=self.user_id)
+                submission = AssignmentSubmission.objects.get(pk=self.submission_id)
+            except (User.DoesNotExist, AssignmentSubmission.DoesNotExist):
+                return
+
+            # Check if user is student (owner or collaborator), teacher, or admin
+            is_submission_owner = submission.student_id == self.user_id
+            is_collaborator = submission.collaborators.filter(student_id=self.user_id).exists()
+            is_teacher = submission.assignment.can_be_managed_by(user)
+            is_admin = user.user_type == 'admin'
+
+            if not (is_submission_owner or is_collaborator or is_teacher or is_admin):
+                raise ValidationError('No tienes permiso para comentar en esta entrega.')
+
+    def save(self, *args, **kwargs):
+        if self.user_id is not None and self.submission_id is not None:
+            self.clean()
+        super().save(*args, **kwargs)

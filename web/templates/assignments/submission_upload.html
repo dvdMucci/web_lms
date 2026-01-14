@@ -41,6 +41,17 @@
                             {% endif %}
                         </div>
 
+                        <div class="mb-3">
+                            <label for="{{ form.initial_comment.id_for_label }}" class="form-label">{{ form.initial_comment.label }}</label>
+                            {{ form.initial_comment }}
+                            {% if form.initial_comment.errors %}
+                                <div class="text-danger">{{ form.initial_comment.errors }}</div>
+                            {% endif %}
+                            {% if form.initial_comment.help_text %}
+                                <small class="form-text text-muted">{{ form.initial_comment.help_text }}</small>
+                            {% endif %}
+                        </div>
+
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i> 
                             <strong>Tipos de archivo permitidos:</strong>

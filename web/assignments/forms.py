@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Assignment, AssignmentSubmission, AssignmentCollaborator
+from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
 from courses.models import Enrollment
 import os
 
@@ -64,6 +64,16 @@ class AssignmentForm(forms.ModelForm):
 
 class SubmissionForm(forms.ModelForm):
     """Form for students to submit assignments"""
+    initial_comment = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': 'Agregue un comentario o nota sobre su entrega (opcional)'
+        }),
+        label='Comentario o Nota',
+        required=False,
+        help_text='Puede agregar un comentario o nota sobre su entrega (opcional)'
+    )
     
     class Meta:
         model = AssignmentSubmission
@@ -212,3 +222,30 @@ class CollaboratorForm(forms.Form):
                 raise forms.ValidationError('El estudiante principal no puede ser colaborador.')
         
         return username
+
+
+class CommentForm(forms.ModelForm):
+    """Form for adding comments to assignment submissions"""
+    
+    class Meta:
+        model = AssignmentComment
+        fields = ['comment']
+        widgets = {
+            'comment': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Escriba su comentario aquí...'
+            }),
+        }
+        labels = {
+            'comment': 'Comentario',
+        }
+        help_texts = {
+            'comment': 'Escriba su comentario o respuesta',
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.submission = kwargs.pop('submission', None)
+        self.user = kwargs.pop('user', None)
+        self.parent_comment = kwargs.pop('parent_comment', None)
+        super().__init__(*args, **kwargs)

@@ -36,11 +36,23 @@ class Course(models.Model):
         return self.title
 
     def clean(self):
-        if self.instructor and not self.instructor.is_teacher():
-            raise ValidationError('El instructor debe ser un profesor.')
+        # Usar instructor_id para validar antes de guardar
+        # Solo validar si instructor_id está asignado y el objeto está siendo guardado
+        if self.instructor_id is not None:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                instructor = User.objects.get(pk=self.instructor_id)
+                if not instructor.is_teacher():
+                    raise ValidationError('El instructor debe ser un profesor.')
+            except User.DoesNotExist:
+                pass  # El instructor no existe aún, se asignará después
 
     def save(self, *args, **kwargs):
-        self.clean()
+        # Validar solo si instructor_id está asignado
+        # No llamar a clean() aquí para evitar problemas durante form.is_valid()
+        if self.instructor_id is not None:
+            self.clean()
         super().save(*args, **kwargs)
 
     @property

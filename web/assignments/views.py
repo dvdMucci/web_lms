@@ -7,8 +7,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponse, Http404
 from django.core.files.storage import default_storage
-from .models import Assignment, AssignmentSubmission, AssignmentCollaborator
-from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm
+from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
+from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
 from units.models import Unit
 
@@ -323,6 +323,17 @@ def submission_upload(request, course_id, unit_id, assignment_id):
             
             try:
                 submission.save()
+                
+                # Save initial comment if provided
+                initial_comment = form.cleaned_data.get('initial_comment')
+                if initial_comment:
+                    from .models import AssignmentComment
+                    AssignmentComment.objects.create(
+                        submission=submission,
+                        user=request.user,
+                        comment=initial_comment
+                    )
+                
                 messages.success(request, f'Entrega subida exitosamente (Versión {submission.version}).')
                 return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
             except ValidationError as e:
@@ -344,8 +355,9 @@ def submission_upload(request, course_id, unit_id, assignment_id):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
 def submission_detail(request, course_id, unit_id, assignment_id, submission_id):
-    """View submission details with all versions"""
+    """View submission details with all versions and comments"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
@@ -368,12 +380,46 @@ def submission_detail(request, course_id, unit_id, assignment_id, submission_id)
     
     # Get collaborators if group work
     collaborators = None
+    collaborator_students = []
     if assignment.allow_group_work:
         collaborators = AssignmentCollaborator.objects.filter(
             submission=submission
         ).select_related('student')
+        collaborator_students = [c.student for c in collaborators]
     
     can_manage = assignment.can_be_managed_by(request.user)
+    
+    # Get all comments for this submission (top-level only, replies loaded via prefetch)
+    comments = AssignmentComment.objects.filter(
+        submission=submission,
+        parent_comment__isnull=True
+    ).select_related('user').prefetch_related('replies__user').order_by('created_at')
+    
+    # Check if user can comment (student owner, collaborator, or teacher/admin)
+    can_comment = False
+    if request.user.is_student():
+        can_comment = (
+            submission.student == request.user or
+            request.user in collaborator_students
+        )
+    elif request.user.is_teacher() or request.user.user_type == 'admin':
+        can_comment = can_manage
+    
+    # Handle comment form submission
+    comment_form = None
+    if can_comment and request.method == 'POST' and 'add_comment' in request.POST:
+        comment_form = CommentForm(request.POST, submission=submission, user=request.user)
+        if comment_form.is_valid():
+            comment = comment_form.save(commit=False)
+            comment.submission = submission
+            comment.user = request.user
+            comment.save()
+            messages.success(request, 'Comentario agregado exitosamente.')
+            return redirect('assignments:submission_detail', 
+                          course_id=course_id, unit_id=unit_id, 
+                          assignment_id=assignment_id, submission_id=submission_id)
+    else:
+        comment_form = CommentForm(submission=submission, user=request.user) if can_comment else None
     
     context = {
         'course': course,
@@ -383,6 +429,9 @@ def submission_detail(request, course_id, unit_id, assignment_id, submission_id)
         'all_versions': all_versions,
         'collaborators': collaborators,
         'can_manage': can_manage,
+        'comments': comments,
+        'can_comment': can_comment,
+        'comment_form': comment_form,
     }
     return render(request, 'assignments/submission_detail.html', context)
 

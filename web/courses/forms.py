@@ -39,10 +39,11 @@ class CourseForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         # Filter collaborators queryset to exclude the instructor
-        if self.instance and self.instance.pk and self.instance.instructor:
+        # Usar instructor_id para evitar acceder al objeto antes de que esté asignado
+        if self.instance and self.instance.pk and self.instance.instructor_id:
             self.fields['collaborators'].queryset = User.objects.filter(
                 user_type='teacher'
-            ).exclude(id=self.instance.instructor.id)
+            ).exclude(id=self.instance.instructor_id)
         else:
             self.fields['collaborators'].queryset = User.objects.filter(
                 user_type='teacher'

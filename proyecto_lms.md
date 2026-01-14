@@ -13,8 +13,18 @@ Basado en el concepto de sistema de gestión de aprendizaje (LMS) al estilo de M
 
 - **Gestión de Cursos**:
   - Creación de Cursos: Los profesores crean cursos con títulos, descripciones, horarios y límites de inscripción.
-  - Proceso de Inscripción: Los estudiantes navegan y solicitan inscripción; profesores/administradores aprueban. Opciones de auto-inscripción para cursos abiertos.
+  - Colaboradores: Los profesores pueden agregar otros docentes como colaboradores del curso.
+  - Proceso de Inscripción: Los estudiantes navegan y solicitan inscripción; profesores/administradores/colaboradores aprueban las solicitudes. El estado de inscripción puede ser: pendiente, aprobado o rechazado.
   - Visualización de Cursos: Listas de cursos disponibles e inscritos, con búsqueda y filtrado.
+  - Pausar/Reanudar Cursos: Los profesores pueden pausar cursos para ocultarlos temporalmente a los estudiantes.
+  - Gestión de Participantes: Los profesores pueden ver y gestionar las inscripciones de estudiantes.
+
+- **Gestión de Unidades**:
+  - Creación de Unidades: Los profesores y colaboradores pueden crear unidades dentro de los cursos (sin límite de unidades).
+  - Características: Cada unidad tiene título, descripción y orden dentro del curso.
+  - Pausar Unidades: Los docentes pueden pausar unidades para ocultarlas temporalmente a los estudiantes.
+  - Organización: Las unidades organizan el contenido del curso de manera estructurada.
+  - Materiales y Tareas: Los materiales y tareas se asocian a unidades específicas.
 
 - **Acceso a Materiales y Subidas de Archivos**:
   - Subir Materiales: Los profesores suben documentos, videos, enlaces, etc., con metadatos (título, descripción).
@@ -22,9 +32,14 @@ Basado en el concepto de sistema de gestión de aprendizaje (LMS) al estilo de M
   - Control de Acceso: Los estudiantes ven/descargan materiales basados en permisos; profesores editan/borran.
 
 - **Tareas y Exámenes**:
-  - Creación: Los profesores crean tareas/exámenes con fechas límite, instrucciones y adjuntos de archivos.
-  - Envío: Los estudiantes envían trabajos (texto, archivos) antes de las fechas límite.
-  - Calificación: Los profesores revisan envíos, asignan calificaciones y proporcionan retroalimentación/comentarios.
+  - Creación: Los profesores crean tareas/exámenes dentro de unidades, con fechas límite, fecha final opcional, instrucciones y configuración de trabajo en grupo.
+  - Envío de Trabajos: Los estudiantes pueden subir documentos (PDF, Office, Canva) con un comentario opcional inicial. El sistema maneja versionado de entregas (cada nueva entrega crea una nueva versión sin eliminar las anteriores).
+  - Trabajo en Grupo: Los profesores pueden habilitar trabajo en grupo, permitiendo que los estudiantes agreguen colaboradores a sus entregas.
+  - Control de Fechas: El sistema marca entregas fuera de término y puede establecer una fecha final después de la cual no se permiten más entregas.
+  - Sistema de Feedback: Los profesores pueden proporcionar retroalimentación y solicitar reentregas. El estado refleja si una entrega requiere reentrega.
+  - Previsualización de Archivos: Los docentes pueden previsualizar archivos directamente en el navegador o descargarlos.
+  - Sistema de Comentarios: Los estudiantes y docentes pueden agregar comentarios a las entregas, creando un hilo de conversación tipo chat/foro. Los comentarios soportan respuestas anidadas.
+  - Gestión de Versiones: Los docentes pueden ver todas las versiones de una entrega para comparar el progreso del estudiante.
 
 - **Sistema de Calificaciones**:
   - Cálculo de Calificaciones: Computación automática de promedios, puntuaciones ponderadas y calificaciones finales.
@@ -74,17 +89,20 @@ graph TD
     A[Frontend SPA] --> B[API Gateway/Nginx]
     B --> C[Módulo de Gestión de Usuarios]
     B --> D[Módulo de Gestión de Cursos]
+    B --> U[Módulo de Gestión de Unidades]
     B --> E[Módulo de Gestión de Materiales]
     B --> F[Módulo de Tareas/Exámenes]
     B --> G[Módulo de Calificaciones]
     B --> L[Módulo de Foros]
     C --> H[Base de Datos MariaDB]
     D --> H
+    U --> H
     E --> H
     F --> H
     G --> H
     L --> H
     E --> I[Almacenamiento de Archivos S3/Local]
+    F --> I
     J[Servicio de Autenticación] --> C
     J --> B
     K[Servicio de Correo Electrónico] --> C
@@ -109,19 +127,58 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
     - Pruebas: Cobertura completa con 350+ líneas de tests unitarios incluyendo autenticación, gestión de perfil, 2FA, seguridad y administración.
 
 - **Módulo de Gestión de Cursos**:
-  - Responsabilidades: Creación de cursos, inscripción, visualización.
+  - Responsabilidades: Creación de cursos, inscripción, visualización, gestión de colaboradores, aprobación de inscripciones, pausar/reanudar cursos.
   - Dependencias: Gestión de Usuarios (para roles/permisos).
   - Tecnologías: App Django.
+  - **Implementación Completada**:
+    - Modelos: Course (con colaboradores ManyToMany, is_paused), Enrollment (con estados: pending, approved, rejected).
+    - Vistas: CRUD completo para cursos, gestión de inscripciones (aprobar/rechazar/cancelar), gestión de colaboradores, vistas diferenciadas para estudiantes y profesores.
+    - Formularios: CourseForm con soporte para colaboradores.
+    - Templates: Vistas personalizadas para listado de cursos, creación/edición, detalle con gestión de inscripciones y colaboradores.
+    - Permisos: Los colaboradores pueden ver y aprobar inscripciones pero no editar/eliminar/pausar cursos.
+
+- **Módulo de Gestión de Unidades**:
+  - Responsabilidades: Creación de unidades dentro de cursos, organización del contenido, gestión de visibilidad (pausar/reanudar).
+  - Dependencias: Gestión de Cursos, Gestión de Usuarios.
+  - Tecnologías: App Django.
+  - **Implementación Completada**:
+    - Modelos: Unit (con relación a Course, created_by, is_paused, order).
+    - Vistas: CRUD completo para unidades, integración con materiales y tareas.
+    - Formularios: UnitForm para crear y editar unidades.
+    - Templates: Vistas para listado, creación/edición y detalle de unidades.
+    - Permisos: Solo instructores y colaboradores pueden gestionar unidades.
 
 - **Módulo de Gestión de Materiales**:
-  - Responsabilidades: Subidas de archivos, control de acceso, configuraciones de visibilidad.
-  - Dependencias: Gestión de Cursos, Gestión de Usuarios.
+  - Responsabilidades: Subidas de archivos y enlaces, control de acceso, configuraciones de visibilidad, asociación a unidades.
+  - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
   - Tecnologías: Django con bibliotecas de manejo de archivos.
+  - **Implementación Completada**:
+    - Modelos: Material (con relación a Unit y Course, soporte para archivos y enlaces externos, nombres serializados para archivos).
+    - Vistas: CRUD de materiales, carga de materiales en unidades, descarga de archivos, previsualización.
+    - Formularios: MaterialUploadForm con validación de tipos de archivo y tamaño.
+    - Templates: Vistas personalizadas para listado y gestión de materiales.
+    - Seguridad: Validación de extensiones y tamaño de archivos, nombres serializados para almacenamiento seguro.
 
 - **Módulo de Tareas/Exámenes**:
-  - Responsabilidades: Crear/enviar/calificar tareas/exámenes.
-  - Dependencias: Gestión de Cursos, Gestión de Usuarios.
+  - Responsabilidades: Crear/enviar/calificar tareas/exámenes, gestión de entregas con versionado, trabajo en grupo, feedback y reentregas, sistema de comentarios.
+  - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
   - Tecnologías: Django.
+  - **Implementación Completada**:
+    - Modelos:
+      - Assignment: Tareas dentro de unidades con fechas límite, fecha final, trabajo en grupo opcional.
+      - AssignmentSubmission: Entregas de estudiantes con versionado, estados (pending, submitted, returned, resubmitted), feedback del docente.
+      - AssignmentCollaborator: Colaboradores para trabajo en grupo.
+      - AssignmentComment: Sistema de comentarios/chat para cada entrega con soporte para respuestas anidadas.
+    - Vistas: CRUD completo de tareas, carga de entregas, gestión de feedback, previsualización de archivos, gestión de colaboradores, sistema de comentarios.
+    - Formularios: AssignmentForm, SubmissionForm (con comentario inicial), FeedbackForm, CollaboratorForm, CommentForm.
+    - Templates: Vistas diferenciadas para estudiantes y profesores, gestión de versiones, sistema de comentarios tipo chat/foro.
+    - Características:
+      - Versionado: Cada entrega crea una nueva versión sin eliminar las anteriores.
+      - Trabajo en Grupo: Los estudiantes pueden agregar colaboradores si el profesor lo permite.
+      - Feedback y Reentregas: Los docentes pueden solicitar reentregas y proporcionar retroalimentación.
+      - Sistema de Comentarios: Chat/foro para comunicación sobre cada entrega entre estudiantes, colaboradores y docentes.
+      - Previsualización: Los docentes pueden previsualizar archivos directamente en el navegador.
+      - Control de Fechas: Marcado de entregas fuera de término y fecha final opcional.
 
 - **Módulo de Calificaciones**:
   - Responsabilidades: Calcular y mostrar calificaciones.
@@ -180,3 +237,99 @@ Usando Docker Compose para entornos.
 - **Certificados SSL**: Let's Encrypt vía Certbot para HTTPS automático.
 - **Variables de Entorno**: Almacenar secretos (contraseñas DB, claves API) en archivos .env, no en código.
 - **CI/CD**: GitHub Actions para pruebas automatizadas, construcción de imágenes y despliegue a servidores.
+
+## 8. Estado de Implementación
+
+### Módulos Implementados y Funcionalidades
+
+- **Módulo de Gestión de Usuarios**: ✅ Completado
+  - Sistema de autenticación con 2FA
+  - Gestión de perfiles
+  - Control de acceso basado en roles
+
+- **Módulo de Gestión de Cursos**: ✅ Completado
+  - CRUD completo de cursos
+  - Sistema de inscripciones con aprobación
+  - Gestión de colaboradores
+  - Pausar/reanudar cursos
+  - Vistas diferenciadas para estudiantes y profesores
+
+- **Módulo de Gestión de Unidades**: ✅ Completado
+  - CRUD completo de unidades dentro de cursos
+  - Organización del contenido del curso
+  - Sistema de pausar/reanudar unidades
+  - Integración con materiales y tareas
+
+- **Módulo de Gestión de Materiales**: ✅ Completado
+  - Carga de archivos y enlaces
+  - Asociación a unidades
+  - Nombres serializados para seguridad
+  - Validación de tipos de archivo y tamaño
+  - Control de acceso basado en permisos
+
+- **Módulo de Tareas/Exámenes**: ✅ Completado
+  - CRUD completo de tareas dentro de unidades
+  - Sistema de entregas con versionado
+  - Trabajo en grupo con colaboradores
+  - Sistema de feedback y reentregas
+  - Sistema de comentarios/chat para cada entrega
+  - Previsualización de archivos
+  - Control de fechas límite y fecha final
+  - Marcado de entregas fuera de término
+
+- **Módulo de Calificaciones**: ⏳ Pendiente
+
+- **Módulo de Foros**: ⏳ Pendiente
+
+### Configuración y Despliegue
+
+- **Docker Compose**: ✅ Configurado
+  - Servicios: MariaDB, Django Web
+  - Redes: Integración con Nginx Proxy Manager
+  - Volúmenes persistentes para base de datos y archivos
+
+- **Base de Datos**: ✅ MariaDB 10.11
+  - Migraciones configuradas para todos los módulos
+  - Relaciones entre modelos establecidas
+
+- **Frontend**: ✅ Templates Django
+  - Interfaz en español
+  - Diseño responsive con Bootstrap
+  - Vistas personalizadas para cada módulo
+
+- **Seguridad**: ✅ Implementada
+  - CSRF protection configurado
+  - CSRF_TRUSTED_ORIGINS para proxy reverso
+  - SECURE_PROXY_SSL_HEADER configurado
+  - Validación de archivos y tipos
+  - Control de acceso basado en roles
+
+- **Despliegue en Producción**: ✅ Configurado
+  - Dominio: marinaojeda.ar / www.marinaojeda.ar
+  - SSL: Let's Encrypt via Nginx Proxy Manager
+  - Proxy Reverso: Nginx Proxy Manager
+  - Certificados SSL activos
+
+### Tecnologías Utilizadas
+
+- **Backend**: Django 5.2.7 (Python 3.11)
+- **Base de Datos**: MariaDB 10.11
+- **Frontend**: Templates Django con Bootstrap
+- **Containerización**: Docker y Docker Compose
+- **Proxy Reverso**: Nginx Proxy Manager
+- **SSL**: Let's Encrypt
+- **ORM**: Django ORM
+- **Autenticación**: django-otp para 2FA
+
+### Características Principales Implementadas
+
+1. **Sistema de Roles**: Estudiantes, Profesores, Administradores
+2. **Gestión de Cursos**: CRUD completo con colaboradores e inscripciones
+3. **Gestión de Unidades**: Organización del contenido del curso
+4. **Gestión de Materiales**: Archivos y enlaces con control de acceso
+5. **Sistema de Tareas**: Tareas con entregas, versionado, feedback y comentarios
+6. **Trabajo en Grupo**: Colaboradores en tareas
+7. **Sistema de Comentarios**: Chat/foro para comunicación sobre entregas
+8. **Control de Acceso**: Permisos granulares basados en roles
+9. **Versionado**: Sistema de versiones para entregas de tareas
+10. **Feedback y Reentregas**: Sistema completo de retroalimentación

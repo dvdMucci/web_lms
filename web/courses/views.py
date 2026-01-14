@@ -282,7 +282,8 @@ def course_create(request):
         form = CourseForm(request.POST, user=request.user)
         if form.is_valid():
             course = form.save(commit=False)
-            course.instructor = request.user
+            # Asignar instructor antes de guardar para evitar errores de validación
+            course.instructor_id = request.user.id
             course.save()
             form.save_m2m()  # Save many-to-many relationships (collaborators)
             messages.success(request, f'Curso "{course.title}" creado exitosamente.')
@@ -311,8 +312,7 @@ def course_edit(request, course_id):
     if request.method == 'POST':
         form = CourseForm(request.POST, instance=course, user=request.user)
         if form.is_valid():
-            course = form.save()
-            form.save_m2m()  # Save many-to-many relationships (collaborators)
+            course = form.save()  # Django guarda automáticamente las relaciones ManyToMany
             messages.success(request, f'Curso "{course.title}" actualizado exitosamente.')
             return redirect('course_list_teacher')
     else:

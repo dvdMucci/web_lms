@@ -23,8 +23,19 @@ SECRET_KEY = 'django-insecure-qaldz7)v6sm7sruf@r%*wah$c5n5%&rj)y8#9(l)c4+8(k^k!y
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', 'marinaojeda.ar', 'www.marinaojeda.ar', 'localhost', '127.0.0.1']
 
+# Configuración CSRF para dominios confiables
+CSRF_TRUSTED_ORIGINS = [
+    'https://marinaojeda.ar',
+    'https://www.marinaojeda.ar',
+    'http://localhost:5801',
+    'http://127.0.0.1:5801',
+]
+
+# Configuración para proxy reverso (nginx)
+# Django necesita saber que está detrás de un proxy que maneja SSL
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -93,14 +104,17 @@ DATABASES = {
         'NAME': env('DB_NAME'),
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
-        'HOST': env('DB_HOST'),
+        # Usar IP de la red web_lms_default (172.31.0.2) para evitar problemas de autenticación
+        # cuando el contenedor está en múltiples redes. Si DB_HOST es 'db', usar la IP directa.
+        'HOST': '172.31.0.2' if env('DB_HOST', default='') == 'db' else env('DB_HOST'),
         'PORT': env('DB_PORT'),
         'OPTIONS': {
             'sql_mode': 'traditional', # Modo SQL para compatibilidad
             'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES', character_set_connection=utf8mb4, collation_connection=utf8mb4_unicode_ci",
+            'use_unicode': True,
         },
-        'CONN_MAX_AGE': 60,  # Mantener conexiones vivas por 60 segundos
+        'CONN_MAX_AGE': 0,  # Deshabilitar pool de conexiones para evitar problemas de autenticación
         'ATOMIC_REQUESTS': True,  # Transacciones automáticas
     }
 }
@@ -157,5 +171,5 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 # OTP Settings
-OTP_TOTP_ISSUER = 'Sverina LMS' # Nombre del emisor para la aplicación 2FA
+OTP_TOTP_ISSUER = 'Marina Ojeda LMS' # Nombre del emisor para la aplicación 2FA
 OTP_LOGIN_URL = '/accounts/login/' # URL de login para OTP
