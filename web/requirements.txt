@@ -11,6 +11,7 @@ pyotp
 django-otp
 djangorestframework
 openpyxl
+requests
 #python-telegram-bot
 torch
 

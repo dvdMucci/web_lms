@@ -246,6 +246,9 @@ Usando Docker Compose para entornos.
   - Sistema de autenticación con 2FA
   - Gestión de perfiles
   - Control de acceso basado en roles
+  - Autoregistro de alumnos con verificación de email vía Mailgun
+  - Enlace de verificación con expiración y cooldown para reenvío
+  - Bloqueo de acceso para alumnos no verificados con pantalla de aviso
 
 - **Módulo de Gestión de Cursos**: ✅ Completado
   - CRUD completo de cursos

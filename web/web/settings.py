@@ -67,6 +67,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.middleware.StudentEmailVerificationMiddleware',
     'django_otp.middleware.OTPMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -173,3 +174,15 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 # OTP Settings
 OTP_TOTP_ISSUER = 'Marina Ojeda LMS' # Nombre del emisor para la aplicación 2FA
 OTP_LOGIN_URL = '/accounts/login/' # URL de login para OTP
+
+# Configuración de Mailgun (notificaciones)
+MAILGUN_API_KEY = env('MAILGUN_API_KEY', default='')
+MAILGUN_DOMAIN = env('MAILGUN_DOMAIN', default='')
+MAILGUN_BASE_URL = env('MAILGUN_BASE_URL', default='https://api.mailgun.net')
+MAILGUN_FROM_EMAIL = env('MAILGUN_FROM_EMAIL', default='')
+MAILGUN_TIMEOUT = env.int('MAILGUN_TIMEOUT', default=10)
+MAILGUN_ENABLED = bool(MAILGUN_API_KEY and MAILGUN_DOMAIN and MAILGUN_FROM_EMAIL)
+
+# Verificacion de email
+EMAIL_VERIFICATION_MAX_AGE_SECONDS = env.int('EMAIL_VERIFICATION_MAX_AGE_SECONDS', default=172800)
+EMAIL_VERIFICATION_COOLDOWN_SECONDS = env.int('EMAIL_VERIFICATION_COOLDOWN_SECONDS', default=300)

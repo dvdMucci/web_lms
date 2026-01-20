@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Verifica tu correo</title>
+</head>
+<body>
+    <p>Hola {{ recipient_name }},</p>
+    <p>Gracias por registrarte. Para habilitar tu cuenta, verifica tu correo haciendo clic en el enlace:</p>
+    <p><a href="{{ verification_url }}">Verificar correo</a></p>
+    <p>Si no solicitaste este registro, podés ignorar este mensaje.</p>
+    <p>Saludos,<br>{{ project_name }}</p>
+</body>
+</html>

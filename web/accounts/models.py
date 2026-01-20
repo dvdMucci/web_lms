@@ -26,6 +26,17 @@ class CustomUser(AbstractUser):
         default=False,
         verbose_name='2FA Habilitado'
     )
+
+    email_verified_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Email verificado el'
+    )
+    email_verification_sent_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Ultimo envio de verificacion'
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -62,3 +73,6 @@ class CustomUser(AbstractUser):
 
     def is_student(self):
         return self.user_type == 'student'
+
+    def is_email_verified(self):
+        return bool(self.email_verified_at)

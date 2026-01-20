@@ -83,6 +83,34 @@
             </div>
         </div>
 
+        {% if is_admin_user %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-envelope"></i> Test de Notificaciones</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'test_notification' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="to_email" class="form-label">Email destino</label>
+                            <input
+                                type="email"
+                                class="form-control"
+                                id="to_email"
+                                name="to_email"
+                                placeholder="email@dominio.com"
+                                value="{{ user.email|default:'' }}"
+                                required
+                            >
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Enviar prueba
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+
         <div class="card mt-3">
             <div class="card-header">
                 <h5><i class="fas fa-info-circle"></i> Información de Usuario</h5>

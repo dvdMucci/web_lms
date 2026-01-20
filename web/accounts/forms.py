@@ -19,6 +19,39 @@ class CustomUserCreationForm(UserCreationForm):
             user.save()
         return user
 
+
+class StudentRegistrationForm(UserCreationForm):
+    email = forms.EmailField(required=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ('username', 'email', 'first_name', 'last_name')
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ['password1', 'password2']:
+            self.fields[field_name].widget.attrs['class'] = 'form-control'
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("Ya existe un usuario con este correo.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data['email']
+        user.user_type = 'student'
+        if commit:
+            user.save()
+        return user
+
 class CustomUserChangeForm(UserChangeForm):
     class Meta:
         model = CustomUser
