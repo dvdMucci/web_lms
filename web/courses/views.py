@@ -7,6 +7,10 @@ from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 from .models import Course, Enrollment
+from core.notifications import (
+    notify_enrollment_created,
+    notify_enrollment_status_changed,
+)
 from .serializers import CourseSerializer, EnrollmentSerializer
 from .forms import CourseForm
 
@@ -84,6 +88,7 @@ class EnrollmentListCreateView(generics.ListCreateAPIView):
         course_id = self.kwargs.get('course_id')
         course = get_object_or_404(Course, id=course_id)
         serializer.save(course=course, student=self.request.user)
+        notify_enrollment_created(serializer.instance)
 
 
 class EnrollmentDetailView(generics.RetrieveUpdateAPIView):
@@ -126,6 +131,7 @@ class EnrollmentDetailView(generics.RetrieveUpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        previous_status = instance.get_status_display()
         # Allow updating status for instructors, collaborators, or admins
         can_update = (
             instance.course.instructor == request.user or
@@ -146,6 +152,8 @@ class EnrollmentDetailView(generics.RetrieveUpdateAPIView):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        if previous_status != serializer.instance.get_status_display():
+            notify_enrollment_status_changed(serializer.instance, previous_status=previous_status)
 
         return Response(serializer.data)
 
@@ -256,6 +264,7 @@ def enrollment_create(request, course_id):
             course=course,
             status='pending'
         )
+        notify_enrollment_created(enrollment)
         
         context = {
             'course': course,
@@ -449,6 +458,7 @@ def enrollment_approve(request, course_id, enrollment_id):
     
     enrollment.status = 'approved'
     enrollment.save()
+    notify_enrollment_status_changed(enrollment, previous_status='Pendiente')
     messages.success(request, f'Inscripción de {enrollment.student.get_full_name() or enrollment.student.username} aprobada exitosamente.')
     return redirect('course_detail', course_id=course_id)
 
@@ -473,6 +483,7 @@ def enrollment_reject(request, course_id, enrollment_id):
     
     enrollment.status = 'rejected'
     enrollment.save()
+    notify_enrollment_status_changed(enrollment, previous_status='Pendiente')
     messages.success(request, f'Inscripción de {enrollment.student.get_full_name() or enrollment.student.username} rechazada.')
     return redirect('course_detail', course_id=course_id)
 
