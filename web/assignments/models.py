@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 import os
 import uuid
 from datetime import datetime
@@ -343,3 +345,9 @@ class AssignmentComment(models.Model):
         if self.user_id is not None and self.submission_id is not None:
             self.clean()
         super().save(*args, **kwargs)
+
+
+@receiver(post_delete, sender=AssignmentSubmission)
+def delete_submission_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

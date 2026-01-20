@@ -142,3 +142,40 @@ class MaterialUploadForm(forms.ModelForm):
             if not (link_url.startswith('http://') or link_url.startswith('https://')):
                 raise forms.ValidationError('La URL debe comenzar con http:// o https://')
         return link_url
+
+
+class MaterialEditForm(MaterialUploadForm):
+    def clean(self):
+        cleaned_data = forms.ModelForm.clean(self)
+        material_type = cleaned_data.get('material_type')
+        file = cleaned_data.get('file')
+        link_url = cleaned_data.get('link_url')
+
+        if material_type == 'file':
+            if not file and not (self.instance and self.instance.file):
+                raise forms.ValidationError({'file': 'Debe proporcionar un archivo para materiales de tipo archivo.'})
+            if link_url:
+                raise forms.ValidationError('No puede tener una URL cuando el tipo es archivo.')
+        elif material_type == 'link':
+            if not link_url:
+                raise forms.ValidationError({'link_url': 'Debe proporcionar una URL para materiales de tipo enlace.'})
+            if file:
+                raise forms.ValidationError('No puede tener un archivo cuando el tipo es enlace.')
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        material = super().save(commit=False)
+        material.material_type = self.cleaned_data.get('material_type', material.material_type)
+
+        if material.material_type == 'file':
+            material.link_url = None
+        elif material.material_type == 'link':
+            material.file = None
+            material.original_filename = ''
+            material.file_size = None
+            material.file_type = ''
+
+        if commit:
+            material.save()
+        return material

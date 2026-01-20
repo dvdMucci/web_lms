@@ -218,6 +218,15 @@ def profile_view(request):
         'is_2fa_enabled': request.user.is_2fa_enabled,
         'is_admin_user': request.user.can_manage_users(),
     }
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        from materials.models import Material
+        from assignments.models import Assignment
+        context['teacher_materials'] = Material.objects.filter(
+            uploaded_by=request.user
+        ).select_related('course', 'unit').order_by('-uploaded_at')[:10]
+        context['teacher_assignments'] = Assignment.objects.filter(
+            created_by=request.user
+        ).select_related('course', 'unit').order_by('-created_at')[:10]
     return render(request, 'accounts/profile.html', context)
 
 @login_required

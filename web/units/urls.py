@@ -11,4 +11,6 @@ urlpatterns = [
     path('<int:course_id>/<int:unit_id>/pause/', views.unit_pause, name='unit_pause'),
     path('<int:course_id>/<int:unit_id>/delete/', views.unit_delete, name='unit_delete'),
     path('<int:course_id>/<int:unit_id>/material/upload/', views.material_upload, name='material_upload'),
+    path('<int:course_id>/<int:unit_id>/material/<int:material_id>/edit/', views.material_edit, name='material_edit'),
+    path('<int:course_id>/<int:unit_id>/material/<int:material_id>/delete/', views.material_delete, name='material_delete'),
 ]

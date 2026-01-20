@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save, post_delete
 from django.dispatch import receiver
 import os
 import uuid
@@ -130,10 +130,37 @@ class Material(models.Model):
 
 @receiver(post_save, sender=Material)
 def update_file_info(sender, instance, created, **kwargs):
-    if created and instance.file:
-        instance.file_size = instance.file.size
-        instance.file_type = os.path.splitext(instance.file.name)[1].lstrip('.')
-        # Save original filename if not already set
-        if not instance.original_filename:
-            instance.original_filename = os.path.basename(instance.file.name)
-        instance.save(update_fields=['file_size', 'file_type', 'original_filename'])
+    if instance.file:
+        file_size = instance.file.size
+        file_type = os.path.splitext(instance.file.name)[1].lstrip('.')
+        original_filename = instance.original_filename or os.path.basename(instance.file.name)
+        if created or instance.file_size != file_size or instance.file_type != file_type or instance.original_filename != original_filename:
+            instance.file_size = file_size
+            instance.file_type = file_type
+            instance.original_filename = original_filename
+            instance.save(update_fields=['file_size', 'file_type', 'original_filename'])
+    else:
+        if instance.file_size or instance.file_type or instance.original_filename:
+            instance.file_size = None
+            instance.file_type = ''
+            instance.original_filename = ''
+            instance.save(update_fields=['file_size', 'file_type', 'original_filename'])
+
+
+@receiver(pre_save, sender=Material)
+def delete_old_material_file(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+    old_instance = Material.objects.filter(pk=instance.pk).only('file').first()
+    if not old_instance or not old_instance.file:
+        return
+    old_file = old_instance.file
+    new_file = instance.file
+    if not new_file or old_file.name != new_file.name:
+        old_file.delete(save=False)
+
+
+@receiver(post_delete, sender=Material)
+def delete_material_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

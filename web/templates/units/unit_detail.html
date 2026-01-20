@@ -123,6 +123,16 @@
                                         <i class="fas fa-external-link-alt"></i> Abrir Enlace
                                     </a>
                                     {% endif %}
+                                    {% if can_manage %}
+                                    <div class="btn-group mt-2" role="group">
+                                        <a href="{% url 'units:material_edit' course.id unit.id material.id %}" class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </a>
+                                        <a href="{% url 'units:material_delete' course.id unit.id material.id %}" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </a>
+                                    </div>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

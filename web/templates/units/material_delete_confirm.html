@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Eliminar Tarea{% endblock %}
+{% block title %}Eliminar Material{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -8,27 +8,25 @@
         <div class="col-md-6">
             <div class="card shadow">
                 <div class="card-header bg-danger text-white">
-                    <h4><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h4>
+                    <h4><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminacion</h4>
                 </div>
                 <div class="card-body">
-                    <p class="lead">¿Estás seguro de que deseas eliminar la tarea <strong>"{{ assignment.title }}"</strong>?</p>
+                    <p class="lead">Estas seguro de que deseas eliminar el material <strong>"{{ material.title }}"</strong>?</p>
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i>
                         <strong>Advertencia:</strong> Esta accion no se puede deshacer.
-                        {% if submission_count %}
-                            Se eliminaran {{ submission_count }} entregas y sus archivos asociados.
-                        {% else %}
-                            No hay entregas asociadas a esta tarea.
+                        {% if has_file %}
+                            El archivo asociado tambien sera eliminado.
                         {% endif %}
                     </div>
                     <form method="post">
                         {% csrf_token %}
                         <div class="d-flex justify-content-between">
-                            <a href="{% url 'assignments:assignment_list' course.id unit.id %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'units:unit_detail' course.id unit.id %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-times"></i> Cancelar
                             </a>
                             <button type="submit" class="btn btn-danger">
-                                <i class="fas fa-trash"></i> Sí, Eliminar
+                                <i class="fas fa-trash"></i> Si, Eliminar
                             </button>
                         </div>
                     </form>

@@ -278,3 +278,64 @@ def material_upload(request, course_id, unit_id):
         'title': 'Subir Material',
     }
     return render(request, 'units/material_upload.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def material_edit(request, course_id, unit_id, material_id):
+    """Edit material from a unit"""
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    from materials.models import Material
+    material = get_object_or_404(Material, id=material_id, unit=unit, course=course)
+
+    if not unit.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para editar este material.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    from .forms import MaterialEditForm
+    if request.method == 'POST':
+        form = MaterialEditForm(request.POST, request.FILES, instance=material, user=request.user, course=course, unit=unit)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Material "{material.title}" actualizado exitosamente.')
+            return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+    else:
+        form = MaterialEditForm(instance=material, user=request.user, course=course, unit=unit)
+
+    context = {
+        'form': form,
+        'course': course,
+        'unit': unit,
+        'material': material,
+        'title': 'Editar Material',
+    }
+    return render(request, 'units/material_edit.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def material_delete(request, course_id, unit_id, material_id):
+    """Delete material from a unit"""
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    from materials.models import Material
+    material = get_object_or_404(Material, id=material_id, unit=unit, course=course)
+
+    if not unit.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para eliminar este material.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    if request.method == 'POST':
+        material_title = material.title
+        material.delete()
+        messages.success(request, f'Material "{material_title}" eliminado exitosamente.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    context = {
+        'course': course,
+        'unit': unit,
+        'material': material,
+        'has_file': bool(material.file),
+    }
+    return render(request, 'units/material_delete_confirm.html', context)

@@ -269,6 +269,8 @@ Usando Docker Compose para entornos.
   - Nombres serializados para seguridad
   - Validación de tipos de archivo y tamaño
   - Control de acceso basado en permisos
+  - Edición y eliminación de materiales desde el perfil docente
+  - Borrado automático de archivos asociados al eliminar o reemplazar
 
 - **Módulo de Tareas/Exámenes**: ✅ Completado
   - CRUD completo de tareas dentro de unidades
@@ -279,6 +281,8 @@ Usando Docker Compose para entornos.
   - Previsualización de archivos
   - Control de fechas límite y fecha final
   - Marcado de entregas fuera de término
+  - Edición y eliminación de tareas desde el perfil docente
+  - Aviso de borrado de entregas con eliminación de archivos asociados
 
 - **Módulo de Calificaciones**: ⏳ Pendiente
 

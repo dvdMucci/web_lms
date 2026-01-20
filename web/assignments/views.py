@@ -160,6 +160,8 @@ def assignment_delete(request, course_id, unit_id, assignment_id):
         messages.error(request, 'No tienes permiso para eliminar esta tarea.')
         return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
     
+    submission_count = AssignmentSubmission.objects.filter(assignment=assignment).count()
+
     if request.method == 'POST':
         assignment_title = assignment.title
         assignment.delete()
@@ -170,6 +172,7 @@ def assignment_delete(request, course_id, unit_id, assignment_id):
         'course': course,
         'unit': unit,
         'assignment': assignment,
+        'submission_count': submission_count,
     }
     return render(request, 'assignments/assignment_delete_confirm.html', context)
 
