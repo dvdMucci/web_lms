@@ -354,3 +354,4 @@ Usando Docker Compose para entornos.
 8. **Control de Acceso**: Permisos granulares basados en roles
 9. **Versionado**: Sistema de versiones para entregas de tareas
 10. **Feedback y Reentregas**: Sistema completo de retroalimentación
+11. **Monitoreo de Almacenamiento**: Sistema completo de monitoreo del bucket Oracle OCI con alertas configurables y visualización en dashboard del administrador
