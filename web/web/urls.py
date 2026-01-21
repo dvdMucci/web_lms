@@ -21,6 +21,7 @@ urlpatterns = [
         path('', course_views.course_list_teacher, name='course_list_teacher'),
         path('create/', course_views.course_create, name='course_create'),
         path('<int:course_id>/', course_views.course_detail, name='course_detail'),
+        path('<int:course_id>/attendance/', include('attendance.urls')),
         path('<int:course_id>/edit/', course_views.course_edit, name='course_edit'),
         path('<int:course_id>/pause/', course_views.course_pause, name='course_pause'),
         path('<int:course_id>/delete/', course_views.course_delete, name='course_delete'),

@@ -137,6 +137,16 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
     - Templates: Vistas personalizadas para listado de cursos, creación/edición, detalle con gestión de inscripciones y colaboradores.
     - Permisos: Los colaboradores pueden ver y aprobar inscripciones pero no editar/eliminar/pausar cursos.
 
+- **Módulo de Asistencia**:
+  - Responsabilidades: Toma de asistencia por fecha, edición posterior, informes por rango, exportes, y vista individual del estudiante.
+  - Dependencias: Gestión de Cursos, Gestión de Usuarios.
+  - Tecnologías: App Django con templates.
+  - **Implementación Completada**:
+    - Modelos: AttendanceSession (por curso/fecha) y AttendanceRecord (presente/ausente/media falta con nota).
+    - Vistas: Toma de asistencia, informe resumen, informe completo con fechas, y detalle por estudiante.
+    - Permisos: Solo instructor/colaboradores/admin pueden gestionar y ver informes; estudiantes solo ven su asistencia.
+    - Exportes: PDF y Excel con opción de resumen o completo.
+
 - **Módulo de Gestión de Unidades**:
   - Responsabilidades: Creación de unidades dentro de cursos, organización del contenido, gestión de visibilidad (pausar/reanudar).
   - Dependencias: Gestión de Cursos, Gestión de Usuarios.
@@ -257,6 +267,13 @@ Usando Docker Compose para entornos.
   - Pausar/reanudar cursos
   - Vistas diferenciadas para estudiantes y profesores
 
+- **Módulo de Asistencia**: ✅ Completado
+  - Toma de asistencia por fecha con edición posterior
+  - Estados: presente, ausente, media falta con nota obligatoria
+  - Informe por rango con porcentajes y equivalentes
+  - Exportes PDF/Excel (resumen o completo)
+  - Vista individual del estudiante con notas
+
 - **Módulo de Gestión de Unidades**: ✅ Completado
   - CRUD completo de unidades dentro de cursos
   - Organización del contenido del curso
@@ -355,3 +372,4 @@ Usando Docker Compose para entornos.
 9. **Versionado**: Sistema de versiones para entregas de tareas
 10. **Feedback y Reentregas**: Sistema completo de retroalimentación
 11. **Monitoreo de Almacenamiento**: Sistema completo de monitoreo del bucket Oracle OCI con alertas configurables y visualización en dashboard del administrador
+12. **Asistencia**: Toma por fecha, reportes con porcentajes, exportes y notas por estudiante

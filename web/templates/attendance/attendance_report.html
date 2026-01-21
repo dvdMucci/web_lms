@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Informe de Asistencia - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4><i class="fas fa-chart-bar"></i> Informe de asistencia</h4>
+            <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al curso
+            </a>
+        </div>
+        <div class="card-body">
+            <h5>{{ course.title }}</h5>
+            <form method="get" class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Desde</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Hasta</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> Filtrar
+                    </button>
+                    <a href="{% url 'attendance:attendance_report' course.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-undo"></i> Mes actual
+                    </a>
+                </div>
+            </form>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-outline-danger" onclick="downloadReport('pdf')">
+                    <i class="fas fa-file-pdf"></i> Descargar PDF
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="downloadReport('excel')">
+                    <i class="fas fa-file-excel"></i> Descargar Excel
+                </button>
+                <a href="{% url 'attendance:attendance_take' course.id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-clipboard-check"></i> Tomar asistencia
+                </a>
+            </div>
+
+            <p class="text-muted">Sesiones registradas en el rango: {{ total_sessions }}</p>
+
+            {% if report_rows %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Estudiante</th>
+                            <th class="text-center">Presentes</th>
+                            <th class="text-center">Ausentes</th>
+                            <th class="text-center">Media falta</th>
+                            <th class="text-center">Inasistencias equivalentes</th>
+                            <th class="text-center">% asistencia</th>
+                            <th class="text-center">Total sesiones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in report_rows %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'attendance:attendance_student_detail' course.id row.student.id %}?start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}">
+                                    {{ row.student.get_full_name|default:row.student.username }}
+                                </a>
+                            </td>
+                            <td class="text-center">{{ row.present_count }}</td>
+                            <td class="text-center">{{ row.absent_count }}</td>
+                            <td class="text-center">{{ row.half_absent_count }}</td>
+                            <td class="text-center">{{ row.equivalent_absent|floatformat:1 }}</td>
+                            <td class="text-center">{{ row.attendance_rate|floatformat:1 }}%</td>
+                            <td class="text-center">{{ total_sessions }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                No hay datos de asistencia en este rango.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function downloadReport(format) {
+        const isFull = confirm(
+            '¿Descargar informe completo? (Aceptar = completo con fechas, Cancelar = resumen)'
+        );
+        const mode = isFull ? 'full' : 'summary';
+        const startDate = '{{ start_date|date:"Y-m-d" }}';
+        const endDate = '{{ end_date|date:"Y-m-d" }}';
+        const baseUrl = format === 'pdf'
+            ? "{% url 'attendance:attendance_report_pdf' course.id %}"
+            : "{% url 'attendance:attendance_report_excel' course.id %}";
+
+        window.location.href = `${baseUrl}?start_date=${startDate}&end_date=${endDate}&mode=${mode}`;
+    }
+</script>
+{% endblock %}

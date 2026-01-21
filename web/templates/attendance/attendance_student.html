@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi Asistencia - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4><i class="fas fa-user-check"></i> Mi asistencia</h4>
+            <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al curso
+            </a>
+        </div>
+        <div class="card-body">
+            <h5>{{ course.title }}</h5>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Presentes: {{ total_present }}
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i> Ausentes: {{ total_absent }}
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle"></i> Media falta: {{ total_half_absent }}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-calculator"></i> Inasistencias equivalentes: {{ equivalent_absent|floatformat:1 }}
+                    </div>
+                </div>
+            </div>
+
+            {% if records %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th class="text-center">Estado</th>
+                            <th>Nota</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            <td>{{ record.session.date|date:"d/m/Y" }}</td>
+                            <td class="text-center">
+                                {% if record.status == 'present' %}
+                                <span class="badge bg-success">Presente</span>
+                                {% elif record.status == 'half_absent' %}
+                                <span class="badge bg-warning text-dark">Media falta</span>
+                                {% else %}
+                                <span class="badge bg-danger">Ausente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ record.note|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                Aún no hay registros de asistencia.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

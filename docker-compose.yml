@@ -22,7 +22,7 @@ services:
     volumes:
       - ./web:/app  # Mapea tu código local para desarrollo en tiempo real
       - /home/ubuntu/marinaOjedaS3:/home/ubuntu/marinaOjedaS3:rw  # Monta el bucket de Oracle OCI para archivos media
-    command: ["./wait-for-db.sh", "sh", "-c", "python manage.py makemigrations accounts && python manage.py makemigrations assignments && python manage.py makemigrations core && python manage.py makemigrations courses && python manage.py makemigrations materials && python manage.py makemigrations units && python manage.py migrate && python create_superuser.py && exec python manage.py runserver 0.0.0.0:8000"]
+    command: ["./wait-for-db.sh", "sh", "-c", "python manage.py makemigrations accounts && python manage.py makemigrations assignments && python manage.py makemigrations core && python manage.py makemigrations courses && python manage.py makemigrations attendance && python manage.py makemigrations materials && python manage.py makemigrations units && python manage.py migrate && python create_superuser.py && exec python manage.py runserver 0.0.0.0:8000"]
     ports:
       - "5801:8000"
     env_file:

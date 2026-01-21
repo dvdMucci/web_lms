@@ -259,6 +259,12 @@
                             <i class="fas fa-book-open"></i> Gestionar Unidades
                         </a>
                         {% if can_manage %}
+                        <a href="{% url 'attendance:attendance_take' course.id %}" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="fas fa-clipboard-check"></i> Tomar Asistencia
+                        </a>
+                        <a href="{% url 'attendance:attendance_report' course.id %}" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="fas fa-chart-bar"></i> Informe de Asistencia
+                        </a>
                         <a href="{% url 'course_edit' course.id %}" class="btn btn-warning w-100 mb-2">
                             <i class="fas fa-edit"></i> Editar Curso
                         </a>
@@ -301,6 +307,9 @@
                     <h5><i class="fas fa-link"></i> Enlaces Rápidos</h5>
                 </div>
                 <div class="card-body">
+                    <a href="{% url 'attendance:attendance_student_view' course.id %}" class="btn btn-outline-success w-100 mb-2">
+                        <i class="fas fa-user-check"></i> Mi Asistencia
+                    </a>
                     <a href="{% url 'units:unit_list' course.id %}" class="btn btn-outline-primary w-100 mb-2">
                         <i class="fas fa-book-open"></i> Unidades del Curso
                     </a>
