@@ -196,6 +196,22 @@ def dashboard(request):
         'user': request.user,
         'user_count': CustomUser.objects.count() if request.user.can_manage_users() else None,
     }
+    
+    # Si el usuario es administrador, incluir información de almacenamiento
+    if request.user.can_manage_users():
+        try:
+            from core.services.storage import get_storage_usage
+            from core.models import StorageConfig
+            
+            usage = get_storage_usage()
+            config = StorageConfig.objects.first()
+            
+            context['storage_usage'] = usage
+            context['storage_config'] = config
+        except Exception:
+            # Si hay algún error, simplemente no mostramos la información
+            pass
+    
     return render(request, 'dashboard.html', context)
 
 @login_required

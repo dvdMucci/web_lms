@@ -139,6 +139,20 @@ def update_file_info(sender, instance, created, **kwargs):
             instance.file_type = file_type
             instance.original_filename = original_filename
             instance.save(update_fields=['file_size', 'file_type', 'original_filename'])
+            
+            # Verificar umbral de almacenamiento después de subir un archivo
+            if created and instance.file:
+                try:
+                    from core.services.storage import check_storage_threshold
+                    # Invalidar caché para obtener datos frescos
+                    from django.core.cache import cache
+                    cache.delete('storage_usage_stats')
+                    # Verificar el umbral de almacenamiento
+                    check_storage_threshold()
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Error al verificar umbral de almacenamiento: {e}")
     else:
         if instance.file_size or instance.file_type or instance.original_filename:
             instance.file_size = None

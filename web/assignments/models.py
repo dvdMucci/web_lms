@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 import os
 import uuid
@@ -345,6 +345,23 @@ class AssignmentComment(models.Model):
         if self.user_id is not None and self.submission_id is not None:
             self.clean()
         super().save(*args, **kwargs)
+
+
+@receiver(post_save, sender=AssignmentSubmission)
+def check_storage_after_submission(sender, instance, created, **kwargs):
+    """Verificar umbral de almacenamiento después de subir un archivo"""
+    if created and instance.file:
+        try:
+            from core.services.storage import check_storage_threshold
+            # Invalidar caché para obtener datos frescos
+            from django.core.cache import cache
+            cache.delete('storage_usage_stats')
+            # Verificar el umbral de almacenamiento
+            check_storage_threshold()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error al verificar umbral de almacenamiento: {e}")
 
 
 @receiver(post_delete, sender=AssignmentSubmission)

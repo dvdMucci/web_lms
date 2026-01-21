@@ -288,12 +288,26 @@ Usando Docker Compose para entornos.
 
 - **Módulo de Foros**: ⏳ Pendiente
 
+- **Módulo de Monitoreo de Almacenamiento**: ✅ Completado
+  - Sistema de monitoreo de uso del bucket Oracle OCI
+  - Vista en dashboard del administrador con estadísticas en tiempo real
+  - Modelo de configuración (StorageConfig) para gestionar umbrales de alerta
+  - Cálculo automático del uso de almacenamiento (caché de 5 minutos)
+  - Sistema de alertas por email cuando se alcanza el umbral configurado
+  - Configuración ajustable de espacio total (GB) y umbral de alerta (%)
+  - Verificación automática del umbral al subir archivos (Material y AssignmentSubmission)
+  - Prevención de spam de alertas (máximo una alerta cada 24 horas)
+  - Vista detallada en el admin de Django con estadísticas y gráficos
+  - Integración con Mailgun para notificaciones
+  - Visualización con barra de progreso y colores según el nivel de uso (verde/amarillo/rojo)
+
 ### Configuración y Despliegue
 
 - **Docker Compose**: ✅ Configurado
   - Servicios: MariaDB, Django Web
   - Redes: Integración con Nginx Proxy Manager
   - Volúmenes persistentes para base de datos y archivos
+  - Volumen montado del bucket Oracle OCI para almacenamiento de archivos media
 
 - **Base de Datos**: ✅ MariaDB 10.11
   - Migraciones configuradas para todos los módulos

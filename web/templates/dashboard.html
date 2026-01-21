@@ -85,6 +85,89 @@
     </div>
     {% endif %}
 </div>
+
+{% comment %} Información de Almacenamiento para Administradores {% endcomment %}
+{% if user.user_type == 'admin' and storage_usage %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="card-header bg-transparent border-0">
+                <h3 class="mb-0 text-white">
+                    <i class="fas fa-hdd"></i> Estado del Almacenamiento - Bucket Oracle OCI
+                    {% if storage_usage.used_percent >= 90 %}
+                        <span class="badge bg-danger ms-2">⚠️ Crítico</span>
+                    {% elif storage_usage.used_percent >= 70 %}
+                        <span class="badge bg-warning text-dark ms-2">⚠️ Alerta</span>
+                    {% endif %}
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Total</div>
+                            <div style="font-size: 2em; font-weight: bold;">{{ storage_usage.total_gb|floatformat:0 }} GB</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Usado</div>
+                            <div style="font-size: 2em; font-weight: bold;">{{ storage_usage.used_gb|floatformat:2 }} GB</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Disponible</div>
+                            <div style="font-size: 2em; font-weight: bold;">{{ storage_usage.available_gb|floatformat:2 }} GB</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; backdrop-filter: blur(10px);">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Porcentaje Usado</div>
+                            <div style="font-size: 2em; font-weight: bold;">{{ storage_usage.used_percent|floatformat:1 }}%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div style="height: 35px; background-color: rgba(255, 255, 255, 0.3); border-radius: 18px; overflow: hidden; position: relative;">
+                        <div style="height: 100%; width: {{ storage_usage.used_percent }}%; min-width: {% if storage_usage.used_percent > 0 %}2px{% else %}0px{% endif %}; background-color: {% if storage_usage.used_percent >= 90 %}#dc3545{% elif storage_usage.used_percent >= 70 %}#ffc107{% else %}#28a745{% endif %}; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; transition: width 0.3s ease; position: relative;">
+                            {% if storage_usage.used_percent >= 5 %}
+                                {{ storage_usage.used_percent|floatformat:1 }}%
+                            {% endif %}
+                        </div>
+                        {% if storage_usage.used_percent < 5 and storage_usage.used_percent > 0 %}
+                        <span style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: white; font-weight: bold; font-size: 0.9em;">
+                            {{ storage_usage.used_percent|floatformat:1 }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="mt-2 mb-0" style="opacity: 0.9; font-size: 0.9em;">
+                        {{ storage_usage.used_gb|floatformat:2 }} GB de {{ storage_usage.total_gb|floatformat:0 }} GB utilizados
+                    </p>
+                </div>
+                
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="/admin/core/storageconfig/" class="btn btn-light">
+                        <i class="fas fa-cog"></i> Gestionar Almacenamiento
+                    </a>
+                    <a href="/admin/core/storageconfig/storage-usage/" class="btn btn-light">
+                        <i class="fas fa-chart-bar"></i> Ver Detalles
+                    </a>
+                    {% if storage_config %}
+                        {% if storage_usage.used_percent >= storage_config.alert_threshold_percent %}
+                        <span class="badge bg-warning text-dark align-self-center">
+                            ⚠️ Umbral alcanzado ({{ storage_config.alert_threshold_percent }}%)
+                        </span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     {% if user.user_type == 'student' %}
     <div class="col-md-6">

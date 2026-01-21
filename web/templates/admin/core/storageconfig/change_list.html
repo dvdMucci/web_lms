@@ -1,0 +1,146 @@
+{% extends "admin/change_list.html" %}
+{% load admin_urls static admin_list %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .storage-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .storage-info h2 {
+            margin-top: 0;
+            color: white;
+        }
+        .storage-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 5px;
+            backdrop-filter: blur(10px);
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .progress-container {
+            margin-top: 15px;
+        }
+        .progress-bar-custom {
+            height: 30px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: {% if storage_usage.used_percent >= 90 %}#dc3545{% elif storage_usage.used_percent >= 70 %}#ffc107{% else %}#28a745{% endif %};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: width 0.3s ease;
+        }
+        .storage-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .storage-actions a, .storage-actions form {
+            display: inline-block;
+        }
+        .storage-actions button, .storage-actions a {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .storage-actions button:hover, .storage-actions a:hover {
+            background: #f0f0f0;
+        }
+        .alert-badge {
+            background: rgba(255, 193, 7, 0.9);
+            color: #000;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+        .alert-badge.danger {
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+        }
+    </style>
+{% endblock %}
+
+{% block content_title %}
+    {{ block.super }}
+    
+    {% if storage_usage %}
+    <div class="storage-info">
+        <h2>
+            <i class="fas fa-hdd"></i> Estado del Almacenamiento
+            {% if storage_usage.used_percent >= 90 %}
+                <span class="alert-badge danger">⚠️ Crítico</span>
+            {% elif storage_usage.used_percent >= 70 %}
+                <span class="alert-badge">⚠️ Alerta</span>
+            {% endif %}
+        </h2>
+        
+        <div class="storage-stats">
+            <div class="stat-card">
+                <div class="stat-label">Espacio Total</div>
+                <div class="stat-value">{{ storage_usage.total_gb|floatformat:0 }} GB</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Espacio Usado</div>
+                <div class="stat-value">{{ storage_usage.used_gb|floatformat:2 }} GB</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Espacio Disponible</div>
+                <div class="stat-value">{{ storage_usage.available_gb|floatformat:2 }} GB</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Porcentaje Usado</div>
+                <div class="stat-value">{{ storage_usage.used_percent|floatformat:1 }}%</div>
+            </div>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-bar-custom">
+                <div class="progress-fill" style="width: {{ storage_usage.used_percent }}%;">
+                    {{ storage_usage.used_percent|floatformat:1 }}%
+                </div>
+            </div>
+        </div>
+        
+        <div class="storage-actions">
+            <a href="{% url 'admin:core_storageconfig_storage_usage' %}">Ver Detalles Completos</a>
+            <form method="post" action="{% url 'admin:core_storageconfig_check_threshold' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit">Verificar Umbral</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

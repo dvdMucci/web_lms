@@ -1,0 +1,140 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Uso de Almacenamiento{% endblock %}
+
+{% block content %}
+<div class="content">
+    <h1>Uso de Almacenamiento - Bucket Oracle OCI</h1>
+    
+    {% if usage.error %}
+    <div class="alert alert-danger">
+        <strong>Error:</strong> {{ usage.error }}
+    </div>
+    {% else %}
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Resumen</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Espacio Total:</th>
+                            <td><strong>{{ usage.total_gb|floatformat:2 }} GB</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Espacio Usado:</th>
+                            <td><strong>{{ usage.used_gb|floatformat:2 }} GB</strong> ({{ usage.used_mb|floatformat:2 }} MB)</td>
+                        </tr>
+                        <tr>
+                            <th>Espacio Disponible:</th>
+                            <td><strong>{{ usage.available_gb|floatformat:2 }} GB</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Porcentaje Usado:</th>
+                            <td>
+                                <strong class="{% if usage.used_percent >= 90 %}text-danger{% elif usage.used_percent >= 70 %}text-warning{% else %}text-success{% endif %}">
+                                    {{ usage.used_percent|floatformat:2 }}%
+                                </strong>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Barra de Progreso</h3>
+                </div>
+                <div class="card-body">
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar 
+                            {% if usage.used_percent >= 90 %}bg-danger
+                            {% elif usage.used_percent >= 70 %}bg-warning
+                            {% else %}bg-success{% endif %}" 
+                            role="progressbar" 
+                            style="width: {{ usage.used_percent }}%;" 
+                            aria-valuenow="{{ usage.used_percent }}" 
+                            aria-valuemin="0" 
+                            aria-valuemax="100">
+                            {{ usage.used_percent|floatformat:1 }}%
+                        </div>
+                    </div>
+                    <p class="mt-3 text-muted">
+                        {{ usage.used_gb|floatformat:2 }} GB de {{ usage.total_gb|floatformat:0 }} GB utilizados
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if config %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Configuración de Alertas</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Umbral de Alerta:</th>
+                            <td>{{ config.alert_threshold_percent }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Alertas Habilitadas:</th>
+                            <td>{{ config.alert_enabled|yesno:"Sí,No" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Email para Alertas:</th>
+                            <td>{{ config.alert_email|default:"No configurado (se usará el email del superusuario)" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Última Alerta Enviada:</th>
+                            <td>{{ config.last_alert_sent|default:"Nunca" }}</td>
+                        </tr>
+                    </table>
+                    
+                    {% if usage.used_percent >= config.alert_threshold_percent %}
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Alerta:</strong> El uso ha alcanzado o superado el umbral configurado ({{ config.alert_threshold_percent }}%).
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <a href="{% url 'admin:core_storageconfig_changelist' %}" class="btn btn-secondary">Volver a Configuración</a>
+            <form method="post" action="{% url 'admin:core_storageconfig_check_threshold' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Verificar Umbral y Enviar Alerta</button>
+            </form>
+        </div>
+    </div>
+    
+    {% endif %}
+</div>
+
+<style>
+.progress {
+    background-color: #e9ecef;
+    border-radius: 4px;
+}
+.progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+</style>
+{% endblock %}

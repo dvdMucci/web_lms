@@ -79,3 +79,64 @@ def notify_email_verification(user, verification_url):
         html=html,
         tags=["email-verification"],
     )
+
+
+def notify_storage_alert(usage_stats, storage_config):
+    """
+    Envía una notificación cuando el uso del almacenamiento alcanza el umbral configurado.
+    """
+    from django.contrib.auth import get_user_model
+    
+    User = get_user_model()
+    
+    # Obtener el email de destino
+    alert_email = storage_config.alert_email
+    if not alert_email:
+        # Si no hay email configurado, usar el del primer superusuario
+        try:
+            superuser = User.objects.filter(is_superuser=True, is_active=True).first()
+            if superuser and superuser.email:
+                alert_email = superuser.email
+        except Exception:
+            pass
+    
+    if not alert_email:
+        return False
+    
+    subject = f"⚠️ Alerta de Almacenamiento: {usage_stats['used_percent']:.1f}% utilizado"
+    context = {
+        "usage": usage_stats,
+        "config": storage_config,
+        "recipient_name": "Administrador",
+        "project_name": "Marina Ojeda LMS",
+    }
+    
+    try:
+        html = render_to_string("emails/storage_alert.html", context)
+    except Exception:
+        # Si no existe el template, crear uno simple en texto
+        html = f"""
+        <html>
+        <body>
+            <h2>Alerta de Almacenamiento</h2>
+            <p>El uso del bucket de almacenamiento ha alcanzado el umbral configurado.</p>
+            <ul>
+                <li><strong>Uso actual:</strong> {usage_stats['used_percent']:.1f}%</li>
+                <li><strong>Espacio usado:</strong> {usage_stats['used_gb']:.2f} GB de {usage_stats['total_gb']:.0f} GB</li>
+                <li><strong>Espacio disponible:</strong> {usage_stats['available_gb']:.2f} GB</li>
+                <li><strong>Umbral configurado:</strong> {storage_config.alert_threshold_percent}%</li>
+            </ul>
+            <p>Por favor, considera liberar espacio o aumentar el plan de almacenamiento.</p>
+        </body>
+        </html>
+        """
+    
+    text = strip_tags(html)
+    
+    return MailgunClient().send_message(
+        to_email=alert_email,
+        subject=subject,
+        text=text,
+        html=html,
+        tags=["storage", "alert"],
+    )
