@@ -215,14 +215,22 @@ def unit_detail(request, course_id, unit_id):
     
     # Get materials for this unit
     from materials.models import Material
-    materials = Material.objects.filter(unit=unit).order_by('-uploaded_at')
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        materials = Material.objects.filter(unit=unit).order_by('-uploaded_at')
+    else:
+        # Students only see published materials
+        materials = Material.objects.filter(unit=unit, is_published=True).order_by('-uploaded_at')
     
-    # Get assignments for this unit - teachers see all, students only active
+    # Get assignments for this unit - teachers see all, students only active and published
     from assignments.models import Assignment
     if request.user.is_teacher() or request.user.user_type == 'admin':
         assignments = Assignment.objects.filter(unit=unit).order_by('due_date', 'created_at')
     else:
-        assignments = Assignment.objects.filter(unit=unit, is_active=True).order_by('due_date', 'created_at')
+        assignments = Assignment.objects.filter(
+            unit=unit,
+            is_active=True,
+            is_published=True
+        ).order_by('due_date', 'created_at')
     
     # Check if user can manage
     can_manage = unit.can_be_managed_by(request.user)
@@ -265,7 +273,27 @@ def material_upload(request, course_id, unit_id):
                     material.original_filename = os.path.basename(material.file.name)
             
             material.save()
-            messages.success(request, f'Material "{material.title}" subido exitosamente.')
+            
+            # Si se publicó inmediatamente y se solicitó notificación, enviar correos
+            if material.is_published and not material.scheduled_publish_at and material.send_notification_email:
+                try:
+                    from core.notifications import notify_material_published
+                    sent = notify_material_published(material)
+                    if sent > 0:
+                        messages.success(request, f'Material "{material.title}" subido y publicado exitosamente. Se enviaron {sent} notificaciones por correo.')
+                    else:
+                        messages.success(request, f'Material "{material.title}" subido y publicado exitosamente.')
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f'Error al enviar notificaciones para material {material.id}: {e}')
+                    messages.success(request, f'Material "{material.title}" subido exitosamente. (Error al enviar notificaciones)')
+            else:
+                if material.scheduled_publish_at:
+                    messages.success(request, f'Material "{material.title}" subido exitosamente. Se publicará el {material.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.')
+                else:
+                    messages.success(request, f'Material "{material.title}" subido exitosamente.')
+            
             return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
     else:
         from .forms import MaterialUploadForm
@@ -297,8 +325,26 @@ def material_edit(request, course_id, unit_id, material_id):
     if request.method == 'POST':
         form = MaterialEditForm(request.POST, request.FILES, instance=material, user=request.user, course=course, unit=unit)
         if form.is_valid():
-            form.save()
-            messages.success(request, f'Material "{material.title}" actualizado exitosamente.')
+            old_is_published = material.is_published
+            material = form.save()
+            
+            # Si se publicó por primera vez y se solicitó notificación, enviar correos
+            if not old_is_published and material.is_published and not material.scheduled_publish_at and material.send_notification_email:
+                try:
+                    from core.notifications import notify_material_published
+                    sent = notify_material_published(material)
+                    if sent > 0:
+                        messages.success(request, f'Material "{material.title}" actualizado y publicado exitosamente. Se enviaron {sent} notificaciones por correo.')
+                    else:
+                        messages.success(request, f'Material "{material.title}" actualizado y publicado exitosamente.')
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f'Error al enviar notificaciones para material {material.id}: {e}')
+                    messages.success(request, f'Material "{material.title}" actualizado exitosamente. (Error al enviar notificaciones)')
+            else:
+                messages.success(request, f'Material "{material.title}" actualizado exitosamente.')
+            
             return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
     else:
         form = MaterialEditForm(instance=material, user=request.user, course=course, unit=unit)

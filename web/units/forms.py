@@ -51,13 +51,20 @@ class MaterialUploadForm(forms.ModelForm):
     
     class Meta:
         model = Material
-        fields = ['title', 'description', 'material_type', 'file', 'link_url', 'visibility']
+        fields = ['title', 'description', 'material_type', 'file', 'link_url', 'visibility', 
+                  'is_published', 'scheduled_publish_at', 'send_notification_email']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'file': forms.FileInput(attrs={'class': 'form-control'}),
             'link_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
             'visibility': forms.Select(attrs={'class': 'form-control'}),
+            'is_published': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'scheduled_publish_at': forms.DateTimeInput(attrs={
+                'class': 'form-control',
+                'type': 'datetime-local'
+            }),
+            'send_notification_email': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         labels = {
             'title': 'Título',
@@ -65,6 +72,9 @@ class MaterialUploadForm(forms.ModelForm):
             'file': 'Archivo',
             'link_url': 'URL del Enlace',
             'visibility': 'Visibilidad',
+            'is_published': 'Publicar Ahora',
+            'scheduled_publish_at': 'Publicar Más Tarde (Fecha/Hora)',
+            'send_notification_email': 'Enviar Correo de Notificación',
         }
         help_texts = {
             'title': 'Nombre que verán los estudiantes',
@@ -72,6 +82,9 @@ class MaterialUploadForm(forms.ModelForm):
             'file': 'Seleccione el archivo a subir (máx. 50MB)',
             'link_url': 'URL completa del enlace (debe comenzar con http:// o https://)',
             'visibility': 'Quién puede ver este material',
+            'is_published': 'Si está activado, el material estará disponible para los estudiantes inmediatamente',
+            'scheduled_publish_at': 'Opcional: Programe la publicación para una fecha y hora específica. Si se establece, el material se publicará automáticamente en ese momento',
+            'send_notification_email': 'Si está activado, se enviará un correo a todos los estudiantes inscritos cuando se publique el material',
         }
     
     def __init__(self, *args, **kwargs):
@@ -79,7 +92,11 @@ class MaterialUploadForm(forms.ModelForm):
         self.course = kwargs.pop('course', None)
         self.unit = kwargs.pop('unit', None)
         super().__init__(*args, **kwargs)
-        
+        # Aceptar el formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
+        self.fields['scheduled_publish_at'].input_formats = [
+            '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M',
+        ]
         # Set initial material type
         if self.instance and self.instance.pk:
             self.fields['material_type'].initial = self.instance.material_type
@@ -91,6 +108,8 @@ class MaterialUploadForm(forms.ModelForm):
         material_type = cleaned_data.get('material_type')
         file = cleaned_data.get('file')
         link_url = cleaned_data.get('link_url')
+        is_published = cleaned_data.get('is_published', False)
+        scheduled_publish_at = cleaned_data.get('scheduled_publish_at')
         
         if material_type == 'file':
             if not file:
@@ -103,7 +122,33 @@ class MaterialUploadForm(forms.ModelForm):
             if file:
                 raise forms.ValidationError('No puede tener un archivo cuando el tipo es enlace.')
         
+        # Validar lógica de publicación
+        if scheduled_publish_at and is_published:
+            raise forms.ValidationError({
+                'is_published': 'No puede publicar inmediatamente si tiene una fecha de publicación programada. Desactive "Publicar Ahora" o elimine la fecha programada.'
+            })
+        
+        if scheduled_publish_at:
+            from django.utils import timezone
+            dt = scheduled_publish_at
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            if dt <= timezone.now():
+                raise forms.ValidationError({
+                    'scheduled_publish_at': 'La fecha de publicación programada debe ser en el futuro.'
+                })
+        
         return cleaned_data
+    
+    def save(self, commit=True):
+        material = super().save(commit=False)
+        # Si hay una fecha programada, no publicar ahora
+        if material.scheduled_publish_at:
+            material.is_published = False
+        
+        if commit:
+            material.save()
+        return material
     
     def clean_file(self):
         file = self.cleaned_data.get('file')

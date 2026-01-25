@@ -196,3 +196,8 @@ cython_debug/
 #Carpetas del proyecto
 mariadb_data/
 web/media/
+web/logs/
+
+# Env volcado por el contenedor para cron (contiene secretos)
+.dockerenv
+web/.dockerenv

@@ -35,11 +35,15 @@ def assignment_list(request, course_id, unit_id):
         messages.error(request, 'No tienes permiso para ver las tareas de esta unidad.')
         return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
     
-    # Get assignments - teachers see all, students only active
+    # Get assignments - teachers see all, students only active and published
     if request.user.is_teacher() or request.user.user_type == 'admin':
         assignments = Assignment.objects.filter(unit=unit).order_by('due_date', 'created_at')
     else:
-        assignments = Assignment.objects.filter(unit=unit, is_active=True).order_by('due_date', 'created_at')
+        assignments = Assignment.objects.filter(
+            unit=unit,
+            is_active=True,
+            is_published=True
+        ).order_by('due_date', 'created_at')
     
     # For each assignment, check if student has submitted
     if request.user.is_student():
@@ -96,7 +100,27 @@ def assignment_create(request, course_id, unit_id):
             assignment.created_by = request.user
             try:
                 assignment.save()
-                messages.success(request, f'Tarea "{assignment.title}" creada exitosamente.')
+                
+                # Si se publicó inmediatamente y se solicitó notificación, enviar correos
+                if assignment.is_published and not assignment.scheduled_publish_at and assignment.send_notification_email:
+                    try:
+                        from core.notifications import notify_assignment_published
+                        sent = notify_assignment_published(assignment)
+                        if sent > 0:
+                            messages.success(request, f'Tarea "{assignment.title}" creada y publicada exitosamente. Se enviaron {sent} notificaciones por correo.')
+                        else:
+                            messages.success(request, f'Tarea "{assignment.title}" creada y publicada exitosamente.')
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f'Error al enviar notificaciones para tarea {assignment.id}: {e}')
+                        messages.success(request, f'Tarea "{assignment.title}" creada exitosamente. (Error al enviar notificaciones)')
+                else:
+                    if assignment.scheduled_publish_at:
+                        messages.success(request, f'Tarea "{assignment.title}" creada exitosamente. Se publicará el {assignment.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.')
+                    else:
+                        messages.success(request, f'Tarea "{assignment.title}" creada exitosamente.')
+                
                 return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
             except ValidationError as e:
                 messages.error(request, str(e))
@@ -128,9 +152,27 @@ def assignment_edit(request, course_id, unit_id, assignment_id):
     if request.method == 'POST':
         form = AssignmentForm(request.POST, instance=assignment, user=request.user, course=course, unit=unit)
         if form.is_valid():
+            old_is_published = assignment.is_published
             try:
-                form.save()
-                messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente.')
+                assignment = form.save()
+                
+                # Si se publicó por primera vez y se solicitó notificación, enviar correos
+                if not old_is_published and assignment.is_published and not assignment.scheduled_publish_at and assignment.send_notification_email:
+                    try:
+                        from core.notifications import notify_assignment_published
+                        sent = notify_assignment_published(assignment)
+                        if sent > 0:
+                            messages.success(request, f'Tarea "{assignment.title}" actualizada y publicada exitosamente. Se enviaron {sent} notificaciones por correo.')
+                        else:
+                            messages.success(request, f'Tarea "{assignment.title}" actualizada y publicada exitosamente.')
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f'Error al enviar notificaciones para tarea {assignment.id}: {e}')
+                        messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente. (Error al enviar notificaciones)')
+                else:
+                    messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente.')
+                
                 return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
             except ValidationError as e:
                 messages.error(request, str(e))
@@ -194,7 +236,7 @@ def assignment_detail(request, course_id, unit_id, assignment_id):
             course=course,
             status='approved'
         ).first()
-        can_view = enrollment is not None and assignment.is_active
+        can_view = enrollment is not None and assignment.is_active and assignment.is_published
     
     if not can_view:
         messages.error(request, 'No tienes permiso para ver esta tarea.')

@@ -70,6 +70,22 @@ class Material(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Subido en")
     file_size = models.PositiveIntegerField(blank=True, null=True, verbose_name="Tamaño del archivo")
     file_type = models.CharField(max_length=100, blank=True, verbose_name="Tipo de archivo")
+    is_published = models.BooleanField(
+        default=False,
+        verbose_name="Publicado",
+        help_text="Si está desactivado, los estudiantes no podrán ver este material"
+    )
+    scheduled_publish_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha/Hora de Publicación Programada",
+        help_text="Si se establece, el material se publicará automáticamente en esta fecha y hora"
+    )
+    send_notification_email = models.BooleanField(
+        default=False,
+        verbose_name="Enviar Notificación por Correo",
+        help_text="Si está activado, se enviará un correo a los estudiantes cuando se publique el material"
+    )
 
     class Meta:
         verbose_name = "Material"

@@ -140,3 +140,159 @@ def notify_storage_alert(usage_stats, storage_config):
         html=html,
         tags=["storage", "alert"],
     )
+
+
+def notify_material_published(material):
+    """
+    Envía notificaciones por correo a los estudiantes inscritos cuando se publica un material.
+    """
+    from courses.models import Enrollment
+    
+    # Obtener todos los estudiantes inscritos y aprobados en el curso
+    enrollments = Enrollment.objects.filter(
+        course=material.course,
+        status='approved'
+    ).select_related('student')
+    
+    if not enrollments.exists():
+        return 0
+    
+    sent_count = 0
+    material_url = None
+    
+    # Construir URL del material (necesitarás ajustar según tu estructura de URLs)
+    try:
+        from django.urls import reverse
+        from django.contrib.sites.models import Site
+        from django.conf import settings
+        
+        # Intentar construir la URL completa
+        if material.unit:
+            material_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{material.course.id}/units/{material.unit.id}/"
+        else:
+            material_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{material.course.id}/materials/"
+    except Exception:
+        pass
+    
+    subject = f"Nuevo material disponible: {material.title}"
+    
+    for enrollment in enrollments:
+        student = enrollment.student
+        if not student.email:
+            continue
+        
+        context = {
+            "recipient_name": _full_name_or_username(student),
+            "material": material,
+            "course": material.course,
+            "material_url": material_url,
+            "project_name": "Marina Ojeda LMS",
+        }
+        
+        try:
+            html = render_to_string("emails/material_published.html", context)
+        except Exception:
+            # Si no existe el template, crear uno simple
+            html = f"""
+            <html>
+            <body>
+                <h2>Nuevo Material Disponible</h2>
+                <p>Hola {context['recipient_name']},</p>
+                <p>Se ha publicado un nuevo material en el curso <strong>{material.course.title}</strong>:</p>
+                <h3>{material.title}</h3>
+                {f'<p>{material.description}</p>' if material.description else ''}
+                {f'<p><a href="{material_url}">Ver material</a></p>' if material_url else ''}
+                <p>Saludos,<br>Marina Ojeda LMS</p>
+            </body>
+            </html>
+            """
+        
+        text = strip_tags(html)
+        
+        if MailgunClient().send_message(
+            to_email=student.email,
+            subject=subject,
+            text=text,
+            html=html,
+            tags=["material", "published"],
+        ):
+            sent_count += 1
+    
+    return sent_count
+
+
+def notify_assignment_published(assignment):
+    """
+    Envía notificaciones por correo a los estudiantes inscritos cuando se publica una tarea.
+    """
+    from courses.models import Enrollment
+    
+    # Obtener todos los estudiantes inscritos y aprobados en el curso
+    enrollments = Enrollment.objects.filter(
+        course=assignment.course,
+        status='approved'
+    ).select_related('student')
+    
+    if not enrollments.exists():
+        return 0
+    
+    sent_count = 0
+    assignment_url = None
+    
+    # Construir URL de la tarea
+    try:
+        from django.urls import reverse
+        from django.conf import settings
+        
+        assignment_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{assignment.course.id}/units/{assignment.unit.id}/assignments/{assignment.id}/"
+    except Exception:
+        pass
+    
+    subject = f"Nueva tarea disponible: {assignment.title}"
+    
+    for enrollment in enrollments:
+        student = enrollment.student
+        if not student.email:
+            continue
+        
+        context = {
+            "recipient_name": _full_name_or_username(student),
+            "assignment": assignment,
+            "course": assignment.course,
+            "unit": assignment.unit,
+            "assignment_url": assignment_url,
+            "due_date": assignment.due_date,
+            "project_name": "Marina Ojeda LMS",
+        }
+        
+        try:
+            html = render_to_string("emails/assignment_published.html", context)
+        except Exception:
+            # Si no existe el template, crear uno simple
+            html = f"""
+            <html>
+            <body>
+                <h2>Nueva Tarea Disponible</h2>
+                <p>Hola {context['recipient_name']},</p>
+                <p>Se ha publicado una nueva tarea en el curso <strong>{assignment.course.title}</strong>:</p>
+                <h3>{assignment.title}</h3>
+                {f'<p>{assignment.description}</p>' if assignment.description else ''}
+                <p><strong>Fecha límite de entrega:</strong> {assignment.due_date.strftime('%d/%m/%Y %H:%M')}</p>
+                {f'<p><a href="{assignment_url}">Ver tarea</a></p>' if assignment_url else ''}
+                <p>Saludos,<br>Marina Ojeda LMS</p>
+            </body>
+            </html>
+            """
+        
+        text = strip_tags(html)
+        
+        if MailgunClient().send_message(
+            to_email=student.email,
+            subject=subject,
+            text=text,
+            html=html,
+            tags=["assignment", "published"],
+        ):
+            sent_count += 1
+    
+    return sent_count

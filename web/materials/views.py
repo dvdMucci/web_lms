@@ -69,7 +69,7 @@ class MaterialListCreateView(generics.ListCreateAPIView):
             # Teachers and admins see all materials
             pass
         else:
-            # Students see materials based on visibility
+            # Students see materials based on visibility and publication status
             enrolled = Enrollment.objects.filter(
                 student=user,
                 course=course,
@@ -77,11 +77,17 @@ class MaterialListCreateView(generics.ListCreateAPIView):
             ).exists()
 
             if enrolled:
-                # Show public and enrolled materials
-                queryset = queryset.filter(visibility__in=['public', 'enrolled'])
+                # Show public and enrolled materials that are published
+                queryset = queryset.filter(
+                    visibility__in=['public', 'enrolled'],
+                    is_published=True
+                )
             else:
-                # Show only public materials
-                queryset = queryset.filter(visibility='public')
+                # Show only public materials that are published
+                queryset = queryset.filter(
+                    visibility='public',
+                    is_published=True
+                )
 
         return queryset
 
@@ -165,7 +171,7 @@ def material_list(request, course_id):
         # Teachers and admins see all materials
         materials = Material.objects.filter(course=course).order_by('-uploaded_at')
     else:
-        # Students see materials based on visibility
+        # Students see materials based on visibility and publication status
         enrolled = Enrollment.objects.filter(
             student=request.user,
             course=course,
@@ -173,16 +179,18 @@ def material_list(request, course_id):
         ).exists()
         
         if enrolled:
-            # Show public and enrolled materials
+            # Show public and enrolled materials that are published
             materials = Material.objects.filter(
                 course=course,
-                visibility__in=['public', 'enrolled']
+                visibility__in=['public', 'enrolled'],
+                is_published=True
             ).order_by('-uploaded_at')
         else:
-            # Show only public materials
+            # Show only public materials that are published
             materials = Material.objects.filter(
                 course=course,
-                visibility='public'
+                visibility='public',
+                is_published=True
             ).order_by('-uploaded_at')
     
     # Check if user can manage materials

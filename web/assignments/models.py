@@ -50,6 +50,22 @@ class Assignment(models.Model):
         verbose_name='Permitir Trabajo en Grupo'
     )
     is_active = models.BooleanField(default=True, verbose_name='Activo')
+    is_published = models.BooleanField(
+        default=False,
+        verbose_name='Publicado',
+        help_text='Si está desactivado, los estudiantes no podrán ver esta tarea'
+    )
+    scheduled_publish_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha/Hora de Publicación Programada',
+        help_text='Si se establece, la tarea se publicará automáticamente en esta fecha y hora'
+    )
+    send_notification_email = models.BooleanField(
+        default=False,
+        verbose_name='Enviar Notificación por Correo',
+        help_text='Si está activado, se enviará un correo a los estudiantes cuando se publique la tarea'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
 

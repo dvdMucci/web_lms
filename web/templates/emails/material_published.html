@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <title>Nuevo material disponible</title>
+  </head>
+  <body>
+    <p>Hola {{ recipient_name }},</p>
+    <p>
+      Se ha publicado un nuevo material en el curso
+      "<strong>{{ course.title }}</strong>".
+    </p>
+    <h3>{{ material.title }}</h3>
+    {% if material.description %}
+    <p>{{ material.description }}</p>
+    {% endif %}
+    {% if material_url %}
+    <p>
+      <a href="{{ material_url }}">Ver material</a>
+    </p>
+    {% endif %}
+    <p>Saludos,<br>{{ project_name }}</p>
+  </body>
+</html>

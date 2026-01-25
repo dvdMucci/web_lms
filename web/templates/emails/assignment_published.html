@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <title>Nueva tarea disponible</title>
+  </head>
+  <body>
+    <p>Hola {{ recipient_name }},</p>
+    <p>
+      Se ha publicado una nueva tarea en el curso
+      "<strong>{{ course.title }}</strong>".
+    </p>
+    <h3>{{ assignment.title }}</h3>
+    {% if assignment.description %}
+    <p>{{ assignment.description }}</p>
+    {% endif %}
+    <p>
+      <strong>Fecha límite de entrega:</strong> 
+      {{ due_date|date:"d/m/Y H:i" }}
+    </p>
+    {% if assignment_url %}
+    <p>
+      <a href="{{ assignment_url }}">Ver tarea</a>
+    </p>
+    {% endif %}
+    <p>Saludos,<br>{{ project_name }}</p>
+  </body>
+</html>

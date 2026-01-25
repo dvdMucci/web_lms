@@ -10,7 +10,8 @@ class AssignmentForm(forms.ModelForm):
     
     class Meta:
         model = Assignment
-        fields = ['title', 'description', 'due_date', 'final_date', 'allow_group_work', 'is_active']
+        fields = ['title', 'description', 'due_date', 'final_date', 'allow_group_work', 'is_active',
+                  'is_published', 'scheduled_publish_at', 'send_notification_email']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
@@ -24,6 +25,12 @@ class AssignmentForm(forms.ModelForm):
             }),
             'allow_group_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_published': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'scheduled_publish_at': forms.DateTimeInput(attrs={
+                'class': 'form-control',
+                'type': 'datetime-local'
+            }),
+            'send_notification_email': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         labels = {
             'title': 'Título de la Tarea',
@@ -32,6 +39,9 @@ class AssignmentForm(forms.ModelForm):
             'final_date': 'Fecha Final (Opcional - No se podrán subir más archivos después de esta fecha)',
             'allow_group_work': 'Permitir Trabajo en Grupo',
             'is_active': 'Tarea Activa',
+            'is_published': 'Publicar Ahora',
+            'scheduled_publish_at': 'Publicar Más Tarde (Fecha/Hora)',
+            'send_notification_email': 'Enviar Correo de Notificación',
         }
         help_texts = {
             'title': 'Ingrese el título de la tarea',
@@ -40,6 +50,9 @@ class AssignmentForm(forms.ModelForm):
             'final_date': 'Si se establece, después de esta fecha no se podrán subir más archivos',
             'allow_group_work': 'Si está habilitado, los estudiantes podrán agregar colaboradores',
             'is_active': 'Si está desactivada, los estudiantes no podrán verla',
+            'is_published': 'Si está activado, la tarea estará disponible para los estudiantes inmediatamente',
+            'scheduled_publish_at': 'Opcional: Programe la publicación para una fecha y hora específica. Si se establece, la tarea se publicará automáticamente en ese momento',
+            'send_notification_email': 'Si está activado, se enviará un correo a todos los estudiantes inscritos cuando se publique la tarea',
         }
     
     def __init__(self, *args, **kwargs):
@@ -47,11 +60,19 @@ class AssignmentForm(forms.ModelForm):
         self.course = kwargs.pop('course', None)
         self.unit = kwargs.pop('unit', None)
         super().__init__(*args, **kwargs)
-    
+        # Aceptar formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
+        for name in ('due_date', 'final_date', 'scheduled_publish_at'):
+            self.fields[name].input_formats = [
+                '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M',
+            ]
+
     def clean(self):
         cleaned_data = super().clean()
         due_date = cleaned_data.get('due_date')
         final_date = cleaned_data.get('final_date')
+        is_published = cleaned_data.get('is_published', False)
+        scheduled_publish_at = cleaned_data.get('scheduled_publish_at')
         
         if due_date and final_date:
             if final_date < due_date:
@@ -59,7 +80,33 @@ class AssignmentForm(forms.ModelForm):
                     'final_date': 'La fecha final no puede ser anterior a la fecha límite de entrega.'
                 })
         
+        # Validar lógica de publicación
+        if scheduled_publish_at and is_published:
+            raise forms.ValidationError({
+                'is_published': 'No puede publicar inmediatamente si tiene una fecha de publicación programada. Desactive "Publicar Ahora" o elimine la fecha programada.'
+            })
+        
+        if scheduled_publish_at:
+            from django.utils import timezone
+            dt = scheduled_publish_at
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            if dt <= timezone.now():
+                raise forms.ValidationError({
+                    'scheduled_publish_at': 'La fecha de publicación programada debe ser en el futuro.'
+                })
+        
         return cleaned_data
+    
+    def save(self, commit=True):
+        assignment = super().save(commit=False)
+        # Si hay una fecha programada, no publicar ahora
+        if assignment.scheduled_publish_at:
+            assignment.is_published = False
+        
+        if commit:
+            assignment.save()
+        return assignment
 
 
 class SubmissionForm(forms.ModelForm):

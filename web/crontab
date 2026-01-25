@@ -1,0 +1,4 @@
+# Ejecutar cada minuto para publicar contenido programado (log en /app/logs)
+# run_publish_scheduled.py toma el env de /proc/1 para tener DB/MAILGUN
+# Usar ruta completa a python porque cron tiene PATH mínimo
+* * * * * cd /app && /usr/local/bin/python run_publish_scheduled.py >> /app/logs/publish_scheduled_content.log 2>&1

@@ -159,29 +159,30 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
     - Permisos: Solo instructores y colaboradores pueden gestionar unidades.
 
 - **Módulo de Gestión de Materiales**:
-  - Responsabilidades: Subidas de archivos y enlaces, control de acceso, configuraciones de visibilidad, asociación a unidades.
+  - Responsabilidades: Subidas de archivos y enlaces, control de acceso, configuraciones de visibilidad, asociación a unidades, publicación programada y notificaciones por correo.
   - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
   - Tecnologías: Django con bibliotecas de manejo de archivos.
   - **Implementación Completada**:
-    - Modelos: Material (con relación a Unit y Course, soporte para archivos y enlaces externos, nombres serializados para archivos).
-    - Vistas: CRUD de materiales, carga de materiales en unidades, descarga de archivos, previsualización.
-    - Formularios: MaterialUploadForm con validación de tipos de archivo y tamaño.
-    - Templates: Vistas personalizadas para listado y gestión de materiales.
+    - Modelos: Material (con relación a Unit y Course, soporte para archivos y enlaces externos, nombres serializados para archivos; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos).
+    - Vistas: CRUD de materiales, carga de materiales en unidades, descarga de archivos, previsualización. Filtrado por is_published para alumnos.
+    - Formularios: MaterialUploadForm, MaterialEditForm con validación de tipos de archivo y tamaño, y campos de publicación (publicar ahora, programar fecha/hora, enviar correo).
+    - Templates: Vistas personalizadas para listado y gestión de materiales; formularios con sección “Publicación” para programar y notificar.
     - Seguridad: Validación de extensiones y tamaño de archivos, nombres serializados para almacenamiento seguro.
+    - Publicación: El docente puede publicar de inmediato o programar la publicación; opción de enviar correo a los alumnos inscritos cuando se publique (vía cron + core.notifications.notify_material_published).
 
 - **Módulo de Tareas/Exámenes**:
-  - Responsabilidades: Crear/enviar/calificar tareas/exámenes, gestión de entregas con versionado, trabajo en grupo, feedback y reentregas, sistema de comentarios.
+  - Responsabilidades: Crear/enviar/calificar tareas/exámenes, gestión de entregas con versionado, trabajo en grupo, feedback y reentregas, sistema de comentarios, publicación programada y notificaciones por correo.
   - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
   - Tecnologías: Django.
   - **Implementación Completada**:
     - Modelos:
-      - Assignment: Tareas dentro de unidades con fechas límite, fecha final, trabajo en grupo opcional.
+      - Assignment: Tareas dentro de unidades con fechas límite, fecha final, trabajo en grupo opcional; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos.
       - AssignmentSubmission: Entregas de estudiantes con versionado, estados (pending, submitted, returned, resubmitted), feedback del docente.
       - AssignmentCollaborator: Colaboradores para trabajo en grupo.
       - AssignmentComment: Sistema de comentarios/chat para cada entrega con soporte para respuestas anidadas.
-    - Vistas: CRUD completo de tareas, carga de entregas, gestión de feedback, previsualización de archivos, gestión de colaboradores, sistema de comentarios.
-    - Formularios: AssignmentForm, SubmissionForm (con comentario inicial), FeedbackForm, CollaboratorForm, CommentForm.
-    - Templates: Vistas diferenciadas para estudiantes y profesores, gestión de versiones, sistema de comentarios tipo chat/foro.
+    - Vistas: CRUD completo de tareas, carga de entregas, gestión de feedback, previsualización de archivos, gestión de colaboradores, sistema de comentarios. Filtrado por is_published para alumnos.
+    - Formularios: AssignmentForm (con publicación programada y envío de correo), SubmissionForm (con comentario inicial), FeedbackForm, CollaboratorForm, CommentForm.
+    - Templates: Vistas diferenciadas para estudiantes y profesores, gestión de versiones, sistema de comentarios tipo chat/foro; formulario de tareas con sección “Publicación”.
     - Características:
       - Versionado: Cada entrega crea una nueva versión sin eliminar las anteriores.
       - Trabajo en Grupo: Los estudiantes pueden agregar colaboradores si el profesor lo permite.
@@ -189,6 +190,7 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
       - Sistema de Comentarios: Chat/foro para comunicación sobre cada entrega entre estudiantes, colaboradores y docentes.
       - Previsualización: Los docentes pueden previsualizar archivos directamente en el navegador.
       - Control de Fechas: Marcado de entregas fuera de término y fecha final opcional.
+      - Publicación: El docente puede publicar de inmediato o programar la publicación; opción de enviar correo a los alumnos inscritos cuando se publique (vía cron + core.notifications.notify_assignment_published).
 
 - **Módulo de Calificaciones**:
   - Responsabilidades: Calcular y mostrar calificaciones.
@@ -288,6 +290,7 @@ Usando Docker Compose para entornos.
   - Control de acceso basado en permisos
   - Edición y eliminación de materiales desde el perfil docente
   - Borrado automático de archivos asociados al eliminar o reemplazar
+  - **Publicación y programación**: El docente elige si el material está disponible para alumnos (is_published), puede programar la publicación (scheduled_publish_at, p. ej. lunes 8:00) y optar por enviar correo a los alumnos inscritos al publicarse (send_notification_email). Publicación inmediata o por cron cada minuto. Zona horaria America/Argentina/Buenos_Aires.
 
 - **Módulo de Tareas/Exámenes**: ✅ Completado
   - CRUD completo de tareas dentro de unidades
@@ -300,6 +303,7 @@ Usando Docker Compose para entornos.
   - Marcado de entregas fuera de término
   - Edición y eliminación de tareas desde el perfil docente
   - Aviso de borrado de entregas con eliminación de archivos asociados
+  - **Publicación y programación**: El docente elige si la tarea está disponible para alumnos (is_published), puede programar la publicación (scheduled_publish_at) y optar por enviar correo a los alumnos inscritos al publicarse (send_notification_email). Misma lógica de cron y zona horaria que en materiales.
 
 - **Módulo de Calificaciones**: ⏳ Pendiente
 
@@ -373,3 +377,4 @@ Usando Docker Compose para entornos.
 10. **Feedback y Reentregas**: Sistema completo de retroalimentación
 11. **Monitoreo de Almacenamiento**: Sistema completo de monitoreo del bucket Oracle OCI con alertas configurables y visualización en dashboard del administrador
 12. **Asistencia**: Toma por fecha, reportes con porcentajes, exportes y notas por estudiante
+13. **Publicación programada de materiales y tareas**: El docente puede dejar material/tarea no visible y programar fecha y hora de publicación (ej. lunes 8:00, zona Argentina/Buenos Aires). Cron ejecuta cada minuto `publish_scheduled_content`; al publicar se puede enviar correo a los alumnos inscritos. Componentes: `run_publish_scheduled.py`, `manage.py publish_scheduled_content`, `core.notifications.notify_material_published` y `notify_assignment_published`, templates de correo, `input_formats` para `datetime-local` y `make_aware` en formularios.
