@@ -15,27 +15,8 @@
     {% for course in courses %}
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100 shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h5 class="card-title mb-0">{{ course.title }}</h5>
-                {% if course.id in enrolled_course_ids %}
-                    {% for enrollment_item in enrollments %}
-                        {% if enrollment_item.course.id == course.id %}
-                            {% if enrollment_item.status == 'approved' %}
-                            <span class="badge bg-success">
-                                <i class="fas fa-check"></i> Inscrito
-                            </span>
-                            {% elif enrollment_item.status == 'pending' %}
-                            <span class="badge bg-warning">
-                                <i class="fas fa-clock"></i> Pendiente
-                            </span>
-                            {% elif enrollment_item.status == 'rejected' %}
-                            <span class="badge bg-danger">
-                                <i class="fas fa-times"></i> Rechazado
-                            </span>
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                {% endif %}
             </div>
             <div class="card-body">
                 <p class="card-text">{{ course.description|truncatewords:25 }}</p>
@@ -76,34 +57,14 @@
                     <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-eye"></i> Ver Detalles
                     </a>
-                    {% if course.id not in enrolled_course_ids %}
-                        {% if course.available_spots > 0 %}
-                        <a href="{% url 'enrollment_create' course.id %}" class="btn btn-success btn-sm w-100">
-                            <i class="fas fa-plus"></i> Inscribirse
-                        </a>
-                        {% else %}
-                        <button class="btn btn-secondary btn-sm w-100" disabled>
-                            <i class="fas fa-times"></i> Sin cupos disponibles
-                        </button>
-                        {% endif %}
+                    {% if course.available_spots > 0 %}
+                    <a href="{% url 'enrollment_create' course.id %}" class="btn btn-success btn-sm w-100">
+                        <i class="fas fa-plus"></i> Inscribirse
+                    </a>
                     {% else %}
-                        {% for enrollment_item in enrollments %}
-                            {% if enrollment_item.course.id == course.id %}
-                                {% if enrollment_item.status == 'approved' %}
-                                <a href="{% url 'course_detail' course.id %}" class="btn btn-success btn-sm w-100">
-                                    <i class="fas fa-arrow-right"></i> Ir al Curso
-                                </a>
-                                {% elif enrollment_item.status == 'pending' %}
-                                <a href="{% url 'course_list_enrolled' %}" class="btn btn-warning btn-sm w-100">
-                                    <i class="fas fa-clock"></i> Pendiente de Aprobación
-                                </a>
-                                {% elif enrollment_item.status == 'rejected' %}
-                                <span class="badge bg-danger w-100 py-2">
-                                    <i class="fas fa-times"></i> Inscripción Rechazada
-                                </span>
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
+                    <button class="btn btn-secondary btn-sm w-100" disabled>
+                        <i class="fas fa-times"></i> Sin cupos disponibles
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -114,8 +75,11 @@
 {% else %}
 <div class="text-center mt-5">
     <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
-    <h4>No hay cursos disponibles</h4>
-    <p class="text-muted">No se encontraron cursos disponibles en este momento.</p>
+    <h4>No hay ningún curso con inscripción abierta</h4>
+    <p class="text-muted">En este momento no hay cursos que acepten nuevas inscripciones.</p>
+    <a href="{% url 'course_list_enrolled' %}" class="btn btn-outline-primary mt-3">
+        <i class="fas fa-user-check"></i> Mis Cursos Inscritos
+    </a>
 </div>
 {% endif %}
 {% endblock %}

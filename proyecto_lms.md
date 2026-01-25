@@ -15,7 +15,9 @@ Basado en el concepto de sistema de gestión de aprendizaje (LMS) al estilo de M
   - Creación de Cursos: Los profesores crean cursos con títulos, descripciones, horarios y límites de inscripción.
   - Colaboradores: Los profesores pueden agregar otros docentes como colaboradores del curso.
   - Proceso de Inscripción: Los estudiantes navegan y solicitan inscripción; profesores/administradores/colaboradores aprueban las solicitudes. El estado de inscripción puede ser: pendiente, aprobado o rechazado.
-  - Visualización de Cursos: Listas de cursos disponibles e inscritos, con búsqueda y filtrado.
+  - **Visibilidad de Cursos**: Un curso solo es visible para un alumno si está inscripto o si el curso tiene la inscripción abierta. Los alumnos inscriptos a un curso no ven otros cursos en los que no están inscriptos, salvo que ese curso acepte nuevas inscripciones. Si no hay ningún curso con inscripción abierta, se muestra únicamente la leyenda: «No hay ningún curso con inscripción abierta».
+  - **Control de Inscripción por el Docente**: El docente (instructor, colaboradores o admin) puede abrir o cerrar la inscripción con botones dedicados. Opciones: abrir ahora (sin cierre), abrir por un periodo (desde ahora hasta una fecha de cierre) o programar la apertura a futuro (fecha de apertura obligatoria, opcionalmente fecha de cierre). Las fechas se evalúan con la zona horaria del servidor.
+  - Visualización de Cursos: Listas de cursos disponibles (solo con inscripción abierta y no inscritos) e inscritos, con búsqueda y filtrado.
   - Pausar/Reanudar Cursos: Los profesores pueden pausar cursos para ocultarlos temporalmente a los estudiantes.
   - Gestión de Participantes: Los profesores pueden ver y gestionar las inscripciones de estudiantes.
 
@@ -127,15 +129,16 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
     - Pruebas: Cobertura completa con 350+ líneas de tests unitarios incluyendo autenticación, gestión de perfil, 2FA, seguridad y administración.
 
 - **Módulo de Gestión de Cursos**:
-  - Responsabilidades: Creación de cursos, inscripción, visualización, gestión de colaboradores, aprobación de inscripciones, pausar/reanudar cursos.
+  - Responsabilidades: Creación de cursos, inscripción, visualización, gestión de colaboradores, aprobación de inscripciones, pausar/reanudar cursos, **apertura/cierre de inscripción** (inmediata, por periodo o programada).
   - Dependencias: Gestión de Usuarios (para roles/permisos).
   - Tecnologías: App Django.
   - **Implementación Completada**:
-    - Modelos: Course (con colaboradores ManyToMany, is_paused), Enrollment (con estados: pending, approved, rejected).
-    - Vistas: CRUD completo para cursos, gestión de inscripciones (aprobar/rechazar/cancelar), gestión de colaboradores, vistas diferenciadas para estudiantes y profesores.
-    - Formularios: CourseForm con soporte para colaboradores.
-    - Templates: Vistas personalizadas para listado de cursos, creación/edición, detalle con gestión de inscripciones y colaboradores.
-    - Permisos: Los colaboradores pueden ver y aprobar inscripciones pero no editar/eliminar/pausar cursos.
+    - Modelos: Course (con colaboradores ManyToMany, is_paused; **enrollment_open**, **enrollment_opens_at**, **enrollment_closes_at**; método **is_open_for_enrollment()**), Enrollment (con estados: pending, approved, rejected).
+    - Vistas: CRUD completo para cursos, gestión de inscripciones (aprobar/rechazar/cancelar), gestión de colaboradores, vistas diferenciadas para estudiantes y profesores; **enrollment_open** (GET/POST) para abrir inscripción (ahora, por periodo o programada), **enrollment_close** (POST); **course_list_student** filtra por is_open_for_enrollment y excluye cursos ya inscritos; **course_detail** redirige al alumno no inscrito si el curso no está abierto; **enrollment_create** valida is_open_for_enrollment.
+    - Formularios: CourseForm con soporte para colaboradores; **EnrollmentOpenForm** (modos: now, period, scheduled) con validación de fechas y make_aware para datetime-local.
+    - Templates: Vistas personalizadas para listado de cursos, creación/edición, detalle con gestión de inscripciones y colaboradores; **course_list_student** con mensaje «No hay ningún curso con inscripción abierta» cuando no hay oferta; **course_detail** con botones Abrir/Cerrar inscripción y estado (abierta/cerrada/programada); **enrollment_open_form** para configurar apertura; **course_list_teacher** con badges Inscripción abierta/cerrada.
+    - URLs: **enrollment_open** (`<int:course_id>/enrollment/open/`), **enrollment_close** (`<int:course_id>/enrollment/close/`).
+    - Permisos: Los colaboradores pueden ver y aprobar inscripciones, y **abrir/cerrar inscripción**; no editar/eliminar/pausar cursos.
 
 - **Módulo de Asistencia**:
   - Responsabilidades: Toma de asistencia por fecha, edición posterior, informes por rango, exportes, y vista individual del estudiante.
@@ -268,6 +271,8 @@ Usando Docker Compose para entornos.
   - Gestión de colaboradores
   - Pausar/reanudar cursos
   - Vistas diferenciadas para estudiantes y profesores
+  - **Visibilidad de cursos por inscripción**: Los cursos solo son visibles para un alumno si está inscripto o si el curso tiene la inscripción abierta. Los alumnos inscriptos no ven otros cursos salvo que acepten nuevas inscripciones. Si no hay cursos con inscripción abierta se muestra: «No hay ningún curso con inscripción abierta».
+  - **Control de inscripción (abrir/cerrar)**: Botones para abrir y cerrar inscripción. Al abrir: ahora (sin cierre), por un periodo (hasta una fecha) o programada a futuro (fecha de apertura y opcional de cierre). Permisos: instructor, colaboradores o admin. Formulario EnrollmentOpenForm y vistas enrollment_open, enrollment_close.
 
 - **Módulo de Asistencia**: ✅ Completado
   - Toma de asistencia por fecha con edición posterior
@@ -378,3 +383,4 @@ Usando Docker Compose para entornos.
 11. **Monitoreo de Almacenamiento**: Sistema completo de monitoreo del bucket Oracle OCI con alertas configurables y visualización en dashboard del administrador
 12. **Asistencia**: Toma por fecha, reportes con porcentajes, exportes y notas por estudiante
 13. **Publicación programada de materiales y tareas**: El docente puede dejar material/tarea no visible y programar fecha y hora de publicación (ej. lunes 8:00, zona Argentina/Buenos Aires). Cron ejecuta cada minuto `publish_scheduled_content`; al publicar se puede enviar correo a los alumnos inscritos. Componentes: `run_publish_scheduled.py`, `manage.py publish_scheduled_content`, `core.notifications.notify_material_published` y `notify_assignment_published`, templates de correo, `input_formats` para `datetime-local` y `make_aware` en formularios.
+14. **Visibilidad de cursos e inscripción controlada por el docente**: Los cursos solo son visibles para alumnos si están inscriptos o si el curso tiene inscripción abierta. El docente puede abrir/cerrar la inscripción (botones), abrir por un periodo o programar la apertura a futuro. Mensaje «No hay ningún curso con inscripción abierta» cuando no hay oferta. Modelo: `enrollment_open`, `enrollment_opens_at`, `enrollment_closes_at`, `is_open_for_enrollment()`; vistas `enrollment_open`, `enrollment_close`; formulario `EnrollmentOpenForm`; templates `enrollment_open_form`, badges en `course_list_teacher` y controles en `course_detail`.

@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Abrir inscripción – {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-door-open"></i> Abrir inscripción: {{ course.title }}</h5>
+                <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver al curso
+                </a>
+            </div>
+            <div class="card-body">
+                <form method="post" id="enrollment-open-form">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <label class="form-label">{{ form.mode.label }}</label>
+                        <div class="border rounded p-3">
+                            {% for radio in form.mode %}
+                            <div class="form-check">
+                                {{ radio.tag }}
+                                <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if form.mode.errors %}<div class="text-danger small">{{ form.mode.errors }}</div>{% endif %}
+                    </div>
+
+                    <div id="wrap_opens" class="mb-3" style="display:none;">
+                        <label for="{{ form.enrollment_opens_at.id_for_label }}" class="form-label">{{ form.enrollment_opens_at.label }}</label>
+                        {{ form.enrollment_opens_at }}
+                        {% if form.enrollment_opens_at.help_text %}<div class="form-text">{{ form.enrollment_opens_at.help_text }}</div>{% endif %}
+                        {% if form.enrollment_opens_at.errors %}<div class="text-danger small">{{ form.enrollment_opens_at.errors }}</div>{% endif %}
+                    </div>
+
+                    <div id="wrap_closes" class="mb-3" style="display:none;">
+                        <label for="{{ form.enrollment_closes_at.id_for_label }}" class="form-label">{{ form.enrollment_closes_at.label }}</label>
+                        {{ form.enrollment_closes_at }}
+                        {% if form.enrollment_closes_at.help_text %}<div class="form-text">{{ form.enrollment_closes_at.help_text }}</div>{% endif %}
+                        {% if form.enrollment_closes_at.errors %}<div class="text-danger small">{{ form.enrollment_closes_at.errors }}</div>{% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'course_detail' course.id %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-door-open"></i> Abrir inscripción
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var form = document.getElementById('enrollment-open-form');
+    if (!form) return;
+    var wrapOpens = document.getElementById('wrap_opens');
+    var wrapCloses = document.getElementById('wrap_closes');
+    var radios = form.querySelectorAll('input[name="mode"]');
+    function update() {
+        var v = (form.querySelector('input[name="mode"]:checked') || {}).value;
+        wrapOpens.style.display = (v === 'scheduled') ? 'block' : 'none';
+        wrapCloses.style.display = (v === 'period' || v === 'scheduled') ? 'block' : 'none';
+    }
+    radios.forEach(function(r) { r.addEventListener('change', update); });
+    update();
+})();
+</script>
+{% endblock %}

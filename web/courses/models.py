@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 class Course(models.Model):
     title = models.CharField(max_length=200, verbose_name='Título')
@@ -26,6 +27,24 @@ class Course(models.Model):
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     is_paused = models.BooleanField(default=False, verbose_name='En Pausa')
     schedule = models.TextField(blank=True, null=True, verbose_name='Horario')
+    # Inscripción: el docente abre/cierra. Si está abierta, se puede inscribir.
+    enrollment_open = models.BooleanField(
+        default=False,
+        verbose_name='Inscripción abierta',
+        help_text='Si está activo, el curso acepta nuevas inscripciones (sujeto a fechas si se definen).'
+    )
+    enrollment_opens_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Inscripción abre el',
+        help_text='Opcional. Si se define, la inscripción solo estará abierta a partir de esta fecha y hora.'
+    )
+    enrollment_closes_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Inscripción cierra el',
+        help_text='Opcional. Si se define, la inscripción se cierra en esta fecha y hora.'
+    )
 
     class Meta:
         verbose_name = 'Curso'
@@ -70,6 +89,20 @@ class Course(models.Model):
     def is_visible_to_students(self):
         """Check if course is visible to students (active and not paused)"""
         return self.is_active and not self.is_paused
+
+    def is_open_for_enrollment(self):
+        """
+        Inscripción efectivamente abierta: enrollment_open=True y, si existen,
+        now >= enrollment_opens_at y now <= enrollment_closes_at.
+        """
+        if not self.enrollment_open:
+            return False
+        now = timezone.now()
+        if self.enrollment_opens_at is not None and now < self.enrollment_opens_at:
+            return False
+        if self.enrollment_closes_at is not None and now > self.enrollment_closes_at:
+            return False
+        return True
 
 
 class Enrollment(models.Model):

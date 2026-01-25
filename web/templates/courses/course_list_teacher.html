@@ -15,21 +15,32 @@
     {% for course in courses %}
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100 shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-1">
                 <h5 class="card-title mb-0">{{ course.title }}</h5>
-                {% if course.is_paused %}
-                <span class="badge bg-warning">
-                    <i class="fas fa-pause"></i> En Pausa
-                </span>
-                {% elif not course.is_active %}
-                <span class="badge bg-danger">
-                    <i class="fas fa-times"></i> Inactivo
-                </span>
-                {% else %}
-                <span class="badge bg-success">
-                    <i class="fas fa-check"></i> Activo
-                </span>
-                {% endif %}
+                <div class="d-flex flex-wrap gap-1">
+                    {% if course.is_open_for_enrollment %}
+                    <span class="badge bg-success">
+                        <i class="fas fa-door-open"></i> Inscripción abierta
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-lock"></i> Inscripción cerrada
+                    </span>
+                    {% endif %}
+                    {% if course.is_paused %}
+                    <span class="badge bg-warning">
+                        <i class="fas fa-pause"></i> En Pausa
+                    </span>
+                    {% elif not course.is_active %}
+                    <span class="badge bg-danger">
+                        <i class="fas fa-times"></i> Inactivo
+                    </span>
+                    {% else %}
+                    <span class="badge bg-info">
+                        <i class="fas fa-check"></i> Activo
+                    </span>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body">
                 <p class="card-text text-truncate">{{ course.description|truncatewords:20 }}</p>

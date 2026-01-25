@@ -26,6 +26,9 @@ urlpatterns = [
         path('<int:course_id>/pause/', course_views.course_pause, name='course_pause'),
         path('<int:course_id>/delete/', course_views.course_delete, name='course_delete'),
         
+        # Enrollment open/close (docente)
+        path('<int:course_id>/enrollment/open/', course_views.enrollment_open, name='enrollment_open'),
+        path('<int:course_id>/enrollment/close/', course_views.enrollment_close, name='enrollment_close'),
         # Enrollment management
         path('<int:course_id>/enrollments/<int:enrollment_id>/approve/', course_views.enrollment_approve, name='enrollment_approve'),
         path('<int:course_id>/enrollments/<int:enrollment_id>/reject/', course_views.enrollment_reject, name='enrollment_reject'),

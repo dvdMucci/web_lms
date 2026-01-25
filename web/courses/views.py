@@ -6,13 +6,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
+from django.utils import timezone
 from .models import Course, Enrollment
 from core.notifications import (
     notify_enrollment_created,
     notify_enrollment_status_changed,
 )
 from .serializers import CourseSerializer, EnrollmentSerializer
-from .forms import CourseForm
+from .forms import CourseForm, EnrollmentOpenForm, MODE_NOW, MODE_PERIOD, MODE_SCHEDULED
 
 
 class IsTeacherOrAdmin(permissions.BasePermission):
@@ -179,33 +180,23 @@ def course_list_teacher(request):
 # Dashboard Views for Students
 @login_required
 def course_list_student(request):
-    """List all available courses for students (active and not paused)"""
+    """Lista de cursos con inscripción abierta a los que el alumno NO está inscripto."""
     if not request.user.is_student():
         messages.error(request, 'Esta página es solo para estudiantes.')
         return redirect('dashboard')
     
-    # Get courses that are visible to students (active and not paused)
-    courses = Course.objects.filter(
+    enrolled_course_ids = set(
+        Enrollment.objects.filter(student=request.user).values_list('course_id', flat=True)
+    )
+    qs = Course.objects.filter(
         is_active=True,
-        is_paused=False
+        is_paused=False,
+        enrollment_open=True,
     ).order_by('-created_at')
+    # Filtrar por is_open_for_enrollment (fechas) y excluir cursos ya inscritos
+    courses = [c for c in qs if c.is_open_for_enrollment() and c.id not in enrolled_course_ids]
     
-    # Get enrollments for the current student with their status
-    enrollments = Enrollment.objects.filter(student=request.user).select_related('course')
-    enrolled_course_ids = set(enrollments.values_list('course_id', flat=True))
-    
-    # Create a dictionary for quick lookup of enrollment status by course_id
-    enrollment_status_by_course = {
-        enrollment.course_id: enrollment.status 
-        for enrollment in enrollments
-    }
-    
-    context = {
-        'courses': courses,
-        'enrolled_course_ids': enrolled_course_ids,
-        'enrollments': enrollments,
-        'enrollment_status_by_course': enrollment_status_by_course,
-    }
+    context = {'courses': courses}
     return render(request, 'courses/course_list_student.html', context)
 
 
@@ -237,9 +228,8 @@ def enrollment_create(request, course_id):
     
     course = get_object_or_404(Course, id=course_id)
     
-    # Check if course is visible to students
-    if not course.is_visible_to_students():
-        messages.error(request, 'Este curso no está disponible para inscripciones.')
+    if not course.is_open_for_enrollment():
+        messages.error(request, 'La inscripción a este curso no está abierta.')
         return redirect('course_list_student')
     
     # Check if already enrolled
@@ -387,12 +377,16 @@ def course_detail(request, course_id):
         'course': course,
     }
     
-    # For students: check enrollment status
+    # For students: check enrollment status and visibility
     if request.user.is_student():
         enrollment = Enrollment.objects.filter(
             student=request.user,
             course=course
         ).first()
+        # Alumno no inscripto solo puede ver el curso si la inscripción está abierta
+        if enrollment is None and not course.is_open_for_enrollment():
+            messages.error(request, 'Este curso no está disponible. La inscripción no está abierta.')
+            return redirect('course_list_student')
         
         context['enrollment'] = enrollment
         context['is_enrolled'] = enrollment is not None
@@ -436,6 +430,72 @@ def course_detail(request, course_id):
         context['all_teachers'] = all_teachers
     
     return render(request, 'courses/course_detail.html', context)
+
+
+def _can_manage_enrollment(user, course):
+    """Instructor, colaboradores o admin pueden gestionar inscripción."""
+    return (
+        course.instructor == user or
+        user in course.collaborators.all() or
+        user.user_type == 'admin'
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def enrollment_open(request, course_id):
+    """Abrir la inscripción: ahora, por un periodo o programada a futuro."""
+    course = get_object_or_404(Course, id=course_id)
+    if not _can_manage_enrollment(request.user, course):
+        messages.error(request, 'No tienes permiso para abrir la inscripción de este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    if request.method == 'POST':
+        form = EnrollmentOpenForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            mode = data['mode']
+            course.enrollment_open = True
+            if mode == MODE_NOW:
+                course.enrollment_opens_at = None
+                course.enrollment_closes_at = None
+            elif mode == MODE_PERIOD:
+                course.enrollment_opens_at = None
+                closes = data.get('enrollment_closes_at')
+                if closes and timezone.is_naive(closes):
+                    closes = timezone.make_aware(closes, timezone.get_current_timezone())
+                course.enrollment_closes_at = closes
+            else:  # MODE_SCHEDULED
+                opens = data.get('enrollment_opens_at')
+                closes = data.get('enrollment_closes_at')
+                if opens and timezone.is_naive(opens):
+                    opens = timezone.make_aware(opens, timezone.get_current_timezone())
+                if closes and timezone.is_naive(closes):
+                    closes = timezone.make_aware(closes, timezone.get_current_timezone())
+                course.enrollment_opens_at = opens
+                course.enrollment_closes_at = closes or None
+            course.save()
+            messages.success(request, 'Inscripción abierta correctamente.')
+            return redirect('course_detail', course_id=course_id)
+    else:
+        form = EnrollmentOpenForm()
+
+    return render(request, 'courses/enrollment_open_form.html', {'form': form, 'course': course})
+
+
+@login_required
+@require_http_methods(["POST"])
+def enrollment_close(request, course_id):
+    """Cerrar la inscripción del curso."""
+    course = get_object_or_404(Course, id=course_id)
+    if not _can_manage_enrollment(request.user, course):
+        messages.error(request, 'No tienes permiso para cerrar la inscripción de este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    course.enrollment_open = False
+    course.save()
+    messages.success(request, 'Inscripción cerrada correctamente.')
+    return redirect('course_detail', course_id=course_id)
 
 
 @login_required

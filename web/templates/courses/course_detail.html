@@ -55,6 +55,20 @@
                                  aria-valuemax="{{ course.enrollment_limit }}">
                             </div>
                         </div>
+                        {% if user.is_teacher or user.user_type == 'admin' %}
+                            {% if can_manage %}
+                            <p class="mt-2 mb-0">
+                                <i class="fas fa-door-open"></i>
+                                {% if course.is_open_for_enrollment %}
+                                    <span class="text-success">Inscripción abierta</span>{% if course.enrollment_closes_at %} (hasta {{ course.enrollment_closes_at|date:"d/m/Y H:i" }}){% endif %}
+                                {% elif course.enrollment_open %}
+                                    {% if course.enrollment_opens_at %}Programada: abre el {{ course.enrollment_opens_at|date:"d/m/Y H:i" }}{% if course.enrollment_closes_at %}, cierra el {{ course.enrollment_closes_at|date:"d/m/Y H:i" }}{% endif %}.{% else %}Período de inscripción vencido.{% endif %}
+                                {% else %}
+                                    <span class="text-muted">Inscripción cerrada</span>
+                                {% endif %}
+                            </p>
+                            {% endif %}
+                        {% endif %}
                     </div>
 
                     {% if user.is_student %}
@@ -268,6 +282,18 @@
                         <a href="{% url 'course_edit' course.id %}" class="btn btn-warning w-100 mb-2">
                             <i class="fas fa-edit"></i> Editar Curso
                         </a>
+                        {% if course.is_open_for_enrollment %}
+                        <form method="post" action="{% url 'enrollment_close' course.id %}" class="mb-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-warning w-100" onclick="return confirm('¿Cerrar la inscripción a este curso?');">
+                                <i class="fas fa-lock"></i> Cerrar inscripción
+                            </button>
+                        </form>
+                        {% else %}
+                        <a href="{% url 'enrollment_open' course.id %}" class="btn btn-outline-success w-100 mb-2">
+                            <i class="fas fa-door-open"></i> Abrir inscripción
+                        </a>
+                        {% endif %}
                         {% endif %}
                         <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary w-100 mb-2">
                             <i class="fas fa-arrow-left"></i> Volver a Cursos
