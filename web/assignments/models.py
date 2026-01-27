@@ -18,14 +18,14 @@ def assignment_submission_upload_path(instance, filename):
 
 
 class Assignment(models.Model):
-    """Model for assignments/tasks created by teachers within units"""
+    """Model for assignments/tasks created by teachers within themes"""
     title = models.CharField(max_length=200, verbose_name='Título')
     description = models.TextField(verbose_name='Descripción')
-    unit = models.ForeignKey(
-        'units.Unit',
+    tema = models.ForeignKey(
+        'units.Tema',
         on_delete=models.CASCADE,
         related_name='assignments',
-        verbose_name='Unidad'
+        verbose_name='Tema'
     )
     course = models.ForeignKey(
         'courses.Course',
@@ -75,7 +75,7 @@ class Assignment(models.Model):
         ordering = ['due_date', 'created_at']
 
     def __str__(self):
-        return f"{self.title} - {self.unit.title}"
+        return f"{self.title} - {self.tema.title}"
 
     def clean(self):
         if self.created_by_id is not None:
@@ -102,6 +102,15 @@ class Assignment(models.Model):
 
                 if not (is_instructor or is_collaborator or is_admin):
                     raise ValidationError('Solo el instructor, colaboradores o administradores pueden crear tareas en este curso.')
+
+            if self.tema_id is not None and self.course_id is not None:
+                from units.models import Tema
+                try:
+                    tema = Tema.objects.get(pk=self.tema_id)
+                    if tema.unit.course_id != self.course_id:
+                        raise ValidationError('El tema debe pertenecer al curso especificado.')
+                except Tema.DoesNotExist:
+                    return
 
             # Validate dates
             if self.final_date and self.due_date:

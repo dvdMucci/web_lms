@@ -10,16 +10,17 @@ from django.core.files.storage import default_storage
 from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
 from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
-from units.models import Unit
+from units.models import Unit, Tema
 
 
 @login_required
-def assignment_list(request, course_id, unit_id):
-    """List all assignments for a unit"""
+def assignment_list(request, course_id, unit_id, tema_id):
+    """List all assignments for a theme"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     
-    # Check if user can view the unit
+    # Check if user can view the theme
     can_view = False
     if request.user.is_teacher() or request.user.user_type == 'admin':
         can_view = True
@@ -29,18 +30,18 @@ def assignment_list(request, course_id, unit_id):
             course=course,
             status='approved'
         ).first()
-        can_view = enrollment is not None and not unit.is_paused
+        can_view = enrollment is not None and tema.is_visible_to_students()
     
     if not can_view:
-        messages.error(request, 'No tienes permiso para ver las tareas de esta unidad.')
-        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+        messages.error(request, 'No tienes permiso para ver las tareas de este tema.')
+        return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     # Get assignments - teachers see all, students only active and published
     if request.user.is_teacher() or request.user.user_type == 'admin':
-        assignments = Assignment.objects.filter(unit=unit).order_by('due_date', 'created_at')
+        assignments = Assignment.objects.filter(tema=tema).order_by('due_date', 'created_at')
     else:
         assignments = Assignment.objects.filter(
-            unit=unit,
+            tema=tema,
             is_active=True,
             is_published=True
         ).order_by('due_date', 'created_at')
@@ -67,6 +68,7 @@ def assignment_list(request, course_id, unit_id):
     context = {
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignments': assignments,
         'can_manage': can_manage,
     }
@@ -75,10 +77,11 @@ def assignment_list(request, course_id, unit_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def assignment_create(request, course_id, unit_id):
+def assignment_create(request, course_id, unit_id, tema_id):
     """Create a new assignment"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     
     # Check permissions
     can_manage = (
@@ -89,14 +92,14 @@ def assignment_create(request, course_id, unit_id):
     
     if not can_manage:
         messages.error(request, 'Solo el instructor, colaboradores o administradores pueden crear tareas.')
-        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     if request.method == 'POST':
-        form = AssignmentForm(request.POST, user=request.user, course=course, unit=unit)
+        form = AssignmentForm(request.POST, user=request.user, course=course, tema=tema)
         if form.is_valid():
             assignment = form.save(commit=False)
             assignment.course = course
-            assignment.unit = unit
+            assignment.tema = tema
             assignment.created_by = request.user
             try:
                 assignment.save()
@@ -121,16 +124,17 @@ def assignment_create(request, course_id, unit_id):
                     else:
                         messages.success(request, f'Tarea "{assignment.title}" creada exitosamente.')
                 
-                return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+                return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
             except ValidationError as e:
                 messages.error(request, str(e))
     else:
-        form = AssignmentForm(user=request.user, course=course, unit=unit)
+        form = AssignmentForm(user=request.user, course=course, tema=tema)
     
     context = {
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'title': 'Crear Tarea',
     }
     return render(request, 'assignments/assignment_form.html', context)
@@ -138,19 +142,20 @@ def assignment_create(request, course_id, unit_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def assignment_edit(request, course_id, unit_id, assignment_id):
+def assignment_edit(request, course_id, unit_id, tema_id, assignment_id):
     """Edit an assignment"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     
     # Check permissions
     if not assignment.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para editar esta tarea.')
-        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     if request.method == 'POST':
-        form = AssignmentForm(request.POST, instance=assignment, user=request.user, course=course, unit=unit)
+        form = AssignmentForm(request.POST, instance=assignment, user=request.user, course=course, tema=tema)
         if form.is_valid():
             old_is_published = assignment.is_published
             try:
@@ -173,16 +178,17 @@ def assignment_edit(request, course_id, unit_id, assignment_id):
                 else:
                     messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente.')
                 
-                return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+                return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
             except ValidationError as e:
                 messages.error(request, str(e))
     else:
-        form = AssignmentForm(instance=assignment, user=request.user, course=course, unit=unit)
+        form = AssignmentForm(instance=assignment, user=request.user, course=course, tema=tema)
     
     context = {
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'title': 'Editar Tarea',
     }
@@ -191,16 +197,17 @@ def assignment_edit(request, course_id, unit_id, assignment_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def assignment_delete(request, course_id, unit_id, assignment_id):
+def assignment_delete(request, course_id, unit_id, tema_id, assignment_id):
     """Delete an assignment"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     
     # Check permissions
     if not assignment.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para eliminar esta tarea.')
-        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     submission_count = AssignmentSubmission.objects.filter(assignment=assignment).count()
 
@@ -208,11 +215,12 @@ def assignment_delete(request, course_id, unit_id, assignment_id):
         assignment_title = assignment.title
         assignment.delete()
         messages.success(request, f'Tarea "{assignment_title}" eliminada exitosamente.')
-        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     context = {
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'submission_count': submission_count,
     }
@@ -220,11 +228,12 @@ def assignment_delete(request, course_id, unit_id, assignment_id):
 
 
 @login_required
-def assignment_detail(request, course_id, unit_id, assignment_id):
+def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
     """View assignment details - different for teachers and students"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     
     # Check if user can view
     can_view = False
@@ -236,11 +245,11 @@ def assignment_detail(request, course_id, unit_id, assignment_id):
             course=course,
             status='approved'
         ).first()
-        can_view = enrollment is not None and assignment.is_active and assignment.is_published
+        can_view = enrollment is not None and assignment.is_active and assignment.is_published and tema.is_visible_to_students()
     
     if not can_view:
         messages.error(request, 'No tienes permiso para ver esta tarea.')
-        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id)
+        return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     is_teacher = request.user.is_teacher() or request.user.user_type == 'admin'
     can_manage = assignment.can_be_managed_by(request.user)
@@ -248,6 +257,7 @@ def assignment_detail(request, course_id, unit_id, assignment_id):
     context = {
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'is_teacher': is_teacher,
         'can_manage': can_manage,
@@ -323,16 +333,17 @@ def assignment_detail(request, course_id, unit_id, assignment_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def submission_upload(request, course_id, unit_id, assignment_id):
+def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
     """Upload a submission for an assignment"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     
     # Check if user is student
     if not request.user.is_student():
         messages.error(request, 'Solo los estudiantes pueden entregar tareas.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     # Check if enrolled
     enrollment = Enrollment.objects.filter(
@@ -343,12 +354,12 @@ def submission_upload(request, course_id, unit_id, assignment_id):
     
     if not enrollment:
         messages.error(request, 'Debes estar inscrito y aprobado en el curso para entregar tareas.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     # Check if assignment allows submissions
     if not assignment.is_submission_allowed():
         messages.error(request, 'Ya no se pueden subir archivos para esta tarea.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     if request.method == 'POST':
         form = SubmissionForm(request.POST, request.FILES, assignment=assignment, student=request.user)
@@ -380,7 +391,7 @@ def submission_upload(request, course_id, unit_id, assignment_id):
                     )
                 
                 messages.success(request, f'Entrega subida exitosamente (Versión {submission.version}).')
-                return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+                return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
             except ValidationError as e:
                 messages.error(request, str(e))
     else:
@@ -393,6 +404,7 @@ def submission_upload(request, course_id, unit_id, assignment_id):
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'is_late': is_late,
     }
@@ -401,21 +413,22 @@ def submission_upload(request, course_id, unit_id, assignment_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def submission_detail(request, course_id, unit_id, assignment_id, submission_id):
+def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submission_id):
     """View submission details with all versions and comments"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
     
     # Check permissions: student can only see their own, teacher can see all
     if request.user.is_student():
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
-            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     # Get all versions of this submission
     all_versions = AssignmentSubmission.objects.filter(
@@ -461,7 +474,7 @@ def submission_detail(request, course_id, unit_id, assignment_id, submission_id)
             comment.save()
             messages.success(request, 'Comentario agregado exitosamente.')
             return redirect('assignments:submission_detail', 
-                          course_id=course_id, unit_id=unit_id, 
+                          course_id=course_id, unit_id=unit_id, tema_id=tema_id,
                           assignment_id=assignment_id, submission_id=submission_id)
     else:
         comment_form = CommentForm(submission=submission, user=request.user) if can_comment else None
@@ -469,6 +482,7 @@ def submission_detail(request, course_id, unit_id, assignment_id, submission_id)
     context = {
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'submission': submission,
         'all_versions': all_versions,
@@ -483,17 +497,18 @@ def submission_detail(request, course_id, unit_id, assignment_id, submission_id)
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def submission_feedback(request, course_id, unit_id, assignment_id, submission_id):
+def submission_feedback(request, course_id, unit_id, tema_id, assignment_id, submission_id):
     """Give feedback on a submission"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
     
     # Check permissions
     if not assignment.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para dar feedback en esta entrega.')
-        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id, submission_id=submission_id)
+        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     
     if request.method == 'POST':
         form = FeedbackForm(request.POST)
@@ -510,7 +525,7 @@ def submission_feedback(request, course_id, unit_id, assignment_id, submission_i
             
             submission.save()
             messages.success(request, 'Feedback guardado exitosamente.')
-            return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id, submission_id=submission_id)
+            return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     else:
         form = FeedbackForm(initial={
             'feedback': submission.feedback,
@@ -521,6 +536,7 @@ def submission_feedback(request, course_id, unit_id, assignment_id, submission_i
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'submission': submission,
     }
@@ -529,22 +545,23 @@ def submission_feedback(request, course_id, unit_id, assignment_id, submission_i
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def collaborator_add(request, course_id, unit_id, assignment_id, submission_id):
+def collaborator_add(request, course_id, unit_id, tema_id, assignment_id, submission_id):
     """Add a collaborator to a submission (for group work)"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
     
     # Check if assignment allows group work
     if not assignment.allow_group_work:
         messages.error(request, 'Esta tarea no permite trabajo en grupo.')
-        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id, submission_id=submission_id)
+        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     
     # Check if user is the student who submitted
     if request.user != submission.student:
         messages.error(request, 'Solo el estudiante que entregó puede agregar colaboradores.')
-        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id, submission_id=submission_id)
+        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     
     if request.method == 'POST':
         form = CollaboratorForm(request.POST, submission=submission, current_student=request.user)
@@ -559,7 +576,7 @@ def collaborator_add(request, course_id, unit_id, assignment_id, submission_id):
                 student=collaborator
             )
             messages.success(request, f'Colaborador "{username}" agregado exitosamente.')
-            return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id, submission_id=submission_id)
+            return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     else:
         form = CollaboratorForm(submission=submission, current_student=request.user)
     
@@ -567,6 +584,7 @@ def collaborator_add(request, course_id, unit_id, assignment_id, submission_id):
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'assignment': assignment,
         'submission': submission,
     }
@@ -574,24 +592,25 @@ def collaborator_add(request, course_id, unit_id, assignment_id, submission_id):
 
 
 @login_required
-def submission_view(request, course_id, unit_id, assignment_id, submission_id):
+def submission_view(request, course_id, unit_id, tema_id, assignment_id, submission_id):
     """View/preview a submission file in the browser"""
     import mimetypes
     import os
     
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
     
     # Check permissions: student can only view their own, teacher can view all
     if request.user.is_student():
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
-            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     if submission.file:
         try:
@@ -638,21 +657,22 @@ def submission_view(request, course_id, unit_id, assignment_id, submission_id):
 
 
 @login_required
-def submission_download(request, course_id, unit_id, assignment_id, submission_id):
+def submission_download(request, course_id, unit_id, tema_id, assignment_id, submission_id):
     """Download a submission file"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    assignment = get_object_or_404(Assignment, id=assignment_id, unit=unit, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
     
     # Check permissions: student can only download their own, teacher can download all
     if request.user.is_student():
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para descargar esta entrega.')
-            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
         messages.error(request, 'No tienes permiso para descargar esta entrega.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, assignment_id=assignment_id)
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
     if submission.file:
         try:

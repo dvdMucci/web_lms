@@ -1,5 +1,5 @@
 from django import forms
-from .models import Unit
+from .models import Unit, Tema
 from courses.models import Course
 from materials.models import Material
 import os
@@ -7,20 +7,17 @@ import os
 class UnitForm(forms.ModelForm):
     class Meta:
         model = Unit
-        fields = ['title', 'description', 'order']
+        fields = ['title', 'order']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
             'order': forms.NumberInput(attrs={'class': 'form-control'}),
         }
         labels = {
             'title': 'Título',
-            'description': 'Descripción',
             'order': 'Orden',
         }
         help_texts = {
             'title': 'Ingrese el título de la unidad',
-            'description': 'Describa el contenido de la unidad',
             'order': 'Orden de visualización (0 = primero)',
         }
     
@@ -29,6 +26,43 @@ class UnitForm(forms.ModelForm):
         self.course = kwargs.pop('course', None)
         super().__init__(*args, **kwargs)
     
+    def clean_order(self):
+        order = self.cleaned_data.get('order')
+        if order is not None and order < 0:
+            raise forms.ValidationError('El orden debe ser mayor o igual a 0.')
+        return order
+
+
+class TemaForm(forms.ModelForm):
+    class Meta:
+        model = Tema
+        fields = ['title', 'description', 'order', 'is_paused']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_paused': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'title': 'Título',
+            'description': 'Descripción',
+            'order': 'Orden',
+            'is_paused': 'En Pausa',
+        }
+        help_texts = {
+            'title': 'Ingrese el título del tema',
+            'description': 'Describa el contenido del tema',
+            'order': 'Orden de visualización (0 = primero)',
+            'is_paused': 'Si está marcado, los estudiantes no verán este tema',
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        self.unit = kwargs.pop('unit', None)
+        super().__init__(*args, **kwargs)
+        if self.instance is None or not self.instance.pk:
+            self.fields['is_paused'].initial = True
+
     def clean_order(self):
         order = self.cleaned_data.get('order')
         if order is not None and order < 0:
@@ -90,7 +124,7 @@ class MaterialUploadForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         self.course = kwargs.pop('course', None)
-        self.unit = kwargs.pop('unit', None)
+        self.tema = kwargs.pop('tema', None)
         super().__init__(*args, **kwargs)
         # Aceptar el formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
         self.fields['scheduled_publish_at'].input_formats = [

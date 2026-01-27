@@ -58,7 +58,7 @@ class AssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         self.course = kwargs.pop('course', None)
-        self.unit = kwargs.pop('unit', None)
+        self.tema = kwargs.pop('tema', None)
         super().__init__(*args, **kwargs)
         # Aceptar formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
         for name in ('due_date', 'final_date', 'scheduled_publish_at'):

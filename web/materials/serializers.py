@@ -5,6 +5,8 @@ from django.conf import settings
 class MaterialSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source="uploaded_by.get_full_name", read_only=True)
     course_title = serializers.CharField(source="course.title", read_only=True)
+    tema_title = serializers.CharField(source="tema.title", read_only=True)
+    unit_title = serializers.CharField(source="tema.unit.title", read_only=True)
     file_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -12,7 +14,8 @@ class MaterialSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "description", "course", "course_title",
             "uploaded_by", "uploaded_by_name", "file", "file_url",
-            "visibility", "uploaded_at", "file_size", "file_type"
+            "visibility", "uploaded_at", "file_size", "file_type",
+            "tema", "tema_title", "unit_title"
         ]
         read_only_fields = ["uploaded_at", "uploaded_by", "uploaded_by_name", "course_title", "file_url", "file_size", "file_type"]
 
@@ -36,7 +39,7 @@ class MaterialSerializer(serializers.ModelSerializer):
 class MaterialUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Material
-        fields = ["title", "description", "course", "file", "visibility"]
+        fields = ["title", "description", "course", "tema", "file", "visibility"]
 
     def create(self, validated_data):
         validated_data["uploaded_by"] = self.context["request"].user
@@ -46,6 +49,12 @@ class MaterialUploadSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if not (value.instructor == user or user.user_type == 'admin'):
             raise serializers.ValidationError("Solo puedes subir materiales a cursos que impartes.")
+        return value
+
+    def validate_tema(self, value):
+        course = self.initial_data.get("course")
+        if value and course and str(value.unit.course_id) != str(course):
+            raise serializers.ValidationError("El tema no pertenece al curso especificado.")
         return value
 
     def validate_file(self, value):

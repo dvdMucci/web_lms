@@ -167,8 +167,11 @@ def notify_material_published(material):
         from django.conf import settings
         
         # Intentar construir la URL completa
-        if material.unit:
-            material_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{material.course.id}/units/{material.unit.id}/"
+        if material.tema:
+            material_url = (
+                f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}"
+                f"/courses/{material.course.id}/units/{material.tema.unit.id}/temas/{material.tema.id}/"
+            )
         else:
             material_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{material.course.id}/materials/"
     except Exception:
@@ -244,7 +247,10 @@ def notify_assignment_published(assignment):
         from django.urls import reverse
         from django.conf import settings
         
-        assignment_url = f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}/courses/{assignment.course.id}/units/{assignment.unit.id}/assignments/{assignment.id}/"
+        assignment_url = (
+            f"{settings.SITE_URL if hasattr(settings, 'SITE_URL') else 'https://marinaojeda.ar'}"
+            f"/courses/{assignment.course.id}/units/{assignment.tema.unit.id}/temas/{assignment.tema.id}/assignments/{assignment.id}/"
+        )
     except Exception:
         pass
     
@@ -259,7 +265,7 @@ def notify_assignment_published(assignment):
             "recipient_name": _full_name_or_username(student),
             "assignment": assignment,
             "course": assignment.course,
-            "unit": assignment.unit,
+            "tema": assignment.tema,
             "assignment_url": assignment_url,
             "due_date": assignment.due_date,
             "project_name": "Marina Ojeda LMS",

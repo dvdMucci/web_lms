@@ -5,8 +5,8 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Max
 from django.core.exceptions import ValidationError
 import os
-from .models import Unit
-from .forms import UnitForm
+from .models import Unit, Tema
+from .forms import UnitForm, TemaForm, MaterialUploadForm, MaterialEditForm
 from courses.models import Course, Enrollment
 
 @login_required
@@ -189,7 +189,7 @@ def unit_delete(request, course_id, unit_id):
 
 @login_required
 def unit_detail(request, course_id, unit_id):
-    """View unit details with materials"""
+    """View unit details with themes"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     
@@ -213,24 +213,11 @@ def unit_detail(request, course_id, unit_id):
         else:
             return redirect('course_list_teacher')
     
-    # Get materials for this unit
-    from materials.models import Material
+    # Get themes for this unit
     if request.user.is_teacher() or request.user.user_type == 'admin':
-        materials = Material.objects.filter(unit=unit).order_by('-uploaded_at')
+        temas = Tema.objects.filter(unit=unit).order_by('order', 'created_at')
     else:
-        # Students only see published materials
-        materials = Material.objects.filter(unit=unit, is_published=True).order_by('-uploaded_at')
-    
-    # Get assignments for this unit - teachers see all, students only active and published
-    from assignments.models import Assignment
-    if request.user.is_teacher() or request.user.user_type == 'admin':
-        assignments = Assignment.objects.filter(unit=unit).order_by('due_date', 'created_at')
-    else:
-        assignments = Assignment.objects.filter(
-            unit=unit,
-            is_active=True,
-            is_published=True
-        ).order_by('due_date', 'created_at')
+        temas = Tema.objects.filter(unit=unit, is_paused=False).order_by('order', 'created_at')
     
     # Check if user can manage
     can_manage = unit.can_be_managed_by(request.user)
@@ -238,8 +225,7 @@ def unit_detail(request, course_id, unit_id):
     context = {
         'course': course,
         'unit': unit,
-        'materials': materials,
-        'assignments': assignments,
+        'temas': temas,
         'can_manage': can_manage,
     }
     return render(request, 'units/unit_detail.html', context)
@@ -247,34 +233,207 @@ def unit_detail(request, course_id, unit_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def material_upload(request, course_id, unit_id):
-    """Upload material to a unit"""
+def tema_detail(request, course_id, unit_id, tema_id):
+    """View theme details with materials and assignments"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
-    
-    # Check permissions: instructor, collaborator, or admin
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+
+    can_view = False
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        can_view = True
+    elif request.user.is_student():
+        enrollment = Enrollment.objects.filter(
+            student=request.user,
+            course=course,
+            status='approved'
+        ).first()
+        can_view = enrollment is not None and tema.is_visible_to_students()
+
+    if not can_view:
+        messages.error(request, 'No tienes permiso para ver este tema.')
+        if request.user.is_student():
+            return redirect('course_list_student')
+        return redirect('course_list_teacher')
+
+    from materials.models import Material
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        materials = Material.objects.filter(tema=tema).order_by('-uploaded_at')
+    else:
+        materials = Material.objects.filter(tema=tema, is_published=True).order_by('-uploaded_at')
+
+    from assignments.models import Assignment
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        assignments = Assignment.objects.filter(tema=tema).order_by('due_date', 'created_at')
+    else:
+        assignments = Assignment.objects.filter(
+            tema=tema,
+            is_active=True,
+            is_published=True
+        ).order_by('due_date', 'created_at')
+
+    can_manage = unit.can_be_managed_by(request.user)
+
+    context = {
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'materials': materials,
+        'assignments': assignments,
+        'can_manage': can_manage,
+    }
+    return render(request, 'units/tema_detail.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tema_create(request, course_id, unit_id):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+
     if not unit.can_be_managed_by(request.user):
-        messages.error(request, 'No tienes permiso para subir materiales a esta unidad.')
+        messages.error(request, 'Solo el instructor, colaboradores o administradores pueden crear temas.')
         return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
-    
+
     if request.method == 'POST':
-        from .forms import MaterialUploadForm
-        form = MaterialUploadForm(request.POST, request.FILES, user=request.user, course=course, unit=unit)
+        form = TemaForm(request.POST, user=request.user, unit=unit)
+        if form.is_valid():
+            tema = form.save(commit=False)
+            tema.unit = unit
+            tema.created_by = request.user
+            try:
+                tema.save()
+            except ValidationError as e:
+                if hasattr(e, 'error_dict'):
+                    for field, errors in e.error_dict.items():
+                        for error in errors:
+                            messages.error(request, f'{field}: {error}')
+                else:
+                    messages.error(request, str(e))
+                context = {
+                    'form': form,
+                    'course': course,
+                    'unit': unit,
+                    'title': 'Crear Tema',
+                }
+                return render(request, 'units/tema_form.html', context)
+            messages.success(request, f'Tema "{tema.title}" creado exitosamente.')
+            return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+    else:
+        max_order = Tema.objects.filter(unit=unit).aggregate(Max('order'))['order__max']
+        next_order = (max_order or -1) + 1
+        form = TemaForm(user=request.user, unit=unit, initial={'order': next_order, 'is_paused': True})
+
+    context = {
+        'form': form,
+        'course': course,
+        'unit': unit,
+        'title': 'Crear Tema',
+    }
+    return render(request, 'units/tema_form.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tema_edit(request, course_id, unit_id, tema_id):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+
+    if not tema.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para editar este tema.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    if request.method == 'POST':
+        form = TemaForm(request.POST, instance=tema, user=request.user, unit=unit)
+        if form.is_valid():
+            tema = form.save()
+            messages.success(request, f'Tema "{tema.title}" actualizado exitosamente.')
+            return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema.id)
+    else:
+        form = TemaForm(instance=tema, user=request.user, unit=unit)
+
+    context = {
+        'form': form,
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'title': 'Editar Tema',
+    }
+    return render(request, 'units/tema_form.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def tema_pause(request, course_id, unit_id, tema_id):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+
+    if not tema.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para pausar/reanudar este tema.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    tema.is_paused = not tema.is_paused
+    tema.save()
+
+    action = 'pausado' if tema.is_paused else 'reanudado'
+    messages.success(request, f'Tema "{tema.title}" {action} exitosamente.')
+    return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tema_delete(request, course_id, unit_id, tema_id):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+
+    if not tema.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para eliminar este tema.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    if request.method == 'POST':
+        tema_title = tema.title
+        tema.delete()
+        messages.success(request, f'Tema "{tema_title}" eliminado exitosamente.')
+        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+    context = {
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+    }
+    return render(request, 'units/tema_delete_confirm.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def material_upload(request, course_id, unit_id, tema_id):
+    """Upload material to a theme"""
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+
+    if not unit.can_be_managed_by(request.user):
+        messages.error(request, 'No tienes permiso para subir materiales a este tema.')
+        return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
+
+    if request.method == 'POST':
+        form = MaterialUploadForm(request.POST, request.FILES, user=request.user, course=course, tema=tema)
         if form.is_valid():
             material = form.save(commit=False)
             material.course = course
-            material.unit = unit
+            material.tema = tema
             material.uploaded_by = request.user
             material.material_type = form.cleaned_data['material_type']
-            
-            # Set original filename for files
+
             if material.material_type == 'file' and material.file:
                 if not material.original_filename:
                     material.original_filename = os.path.basename(material.file.name)
-            
+
             material.save()
-            
-            # Si se publicó inmediatamente y se solicitó notificación, enviar correos
+
             if material.is_published and not material.scheduled_publish_at and material.send_notification_email:
                 try:
                     from core.notifications import notify_material_published
@@ -293,16 +452,16 @@ def material_upload(request, course_id, unit_id):
                     messages.success(request, f'Material "{material.title}" subido exitosamente. Se publicará el {material.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.')
                 else:
                     messages.success(request, f'Material "{material.title}" subido exitosamente.')
-            
-            return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+
+            return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     else:
-        from .forms import MaterialUploadForm
-        form = MaterialUploadForm(user=request.user, course=course, unit=unit)
-    
+        form = MaterialUploadForm(user=request.user, course=course, tema=tema)
+
     context = {
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'title': 'Subir Material',
     }
     return render(request, 'units/material_upload.html', context)
@@ -310,20 +469,21 @@ def material_upload(request, course_id, unit_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def material_edit(request, course_id, unit_id, material_id):
-    """Edit material from a unit"""
+def material_edit(request, course_id, unit_id, tema_id, material_id):
+    """Edit material from a theme"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     from materials.models import Material
-    material = get_object_or_404(Material, id=material_id, unit=unit, course=course)
+    material = get_object_or_404(Material, id=material_id, tema=tema, course=course)
 
     if not unit.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para editar este material.')
-        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+        return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
 
     from .forms import MaterialEditForm
     if request.method == 'POST':
-        form = MaterialEditForm(request.POST, request.FILES, instance=material, user=request.user, course=course, unit=unit)
+        form = MaterialEditForm(request.POST, request.FILES, instance=material, user=request.user, course=course, tema=tema)
         if form.is_valid():
             old_is_published = material.is_published
             material = form.save()
@@ -345,14 +505,15 @@ def material_edit(request, course_id, unit_id, material_id):
             else:
                 messages.success(request, f'Material "{material.title}" actualizado exitosamente.')
             
-            return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+            return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     else:
-        form = MaterialEditForm(instance=material, user=request.user, course=course, unit=unit)
+        form = MaterialEditForm(instance=material, user=request.user, course=course, tema=tema)
 
     context = {
         'form': form,
         'course': course,
         'unit': unit,
+        'tema': tema,
         'material': material,
         'title': 'Editar Material',
     }
@@ -361,26 +522,28 @@ def material_edit(request, course_id, unit_id, material_id):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def material_delete(request, course_id, unit_id, material_id):
-    """Delete material from a unit"""
+def material_delete(request, course_id, unit_id, tema_id, material_id):
+    """Delete material from a theme"""
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     from materials.models import Material
-    material = get_object_or_404(Material, id=material_id, unit=unit, course=course)
+    material = get_object_or_404(Material, id=material_id, tema=tema, course=course)
 
     if not unit.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para eliminar este material.')
-        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+        return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
 
     if request.method == 'POST':
         material_title = material.title
         material.delete()
         messages.success(request, f'Material "{material_title}" eliminado exitosamente.')
-        return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
+        return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
 
     context = {
         'course': course,
         'unit': unit,
+        'tema': tema,
         'material': material,
         'has_file': bool(material.file),
     }

@@ -21,12 +21,13 @@ Basado en el concepto de sistema de gestión de aprendizaje (LMS) al estilo de M
   - Pausar/Reanudar Cursos: Los profesores pueden pausar cursos para ocultarlos temporalmente a los estudiantes.
   - Gestión de Participantes: Los profesores pueden ver y gestionar las inscripciones de estudiantes.
 
-- **Gestión de Unidades**:
+- **Gestión de Unidades y Temas**:
   - Creación de Unidades: Los profesores y colaboradores pueden crear unidades dentro de los cursos (sin límite de unidades).
-  - Características: Cada unidad tiene título, descripción y orden dentro del curso.
+  - Jerarquía: Cada unidad contiene varios temas.
+  - Temas: Cada tema tiene título, descripción, orden y estado de pausa (por defecto en pausa).
   - Pausar Unidades: Los docentes pueden pausar unidades para ocultarlas temporalmente a los estudiantes.
-  - Organización: Las unidades organizan el contenido del curso de manera estructurada.
-  - Materiales y Tareas: Los materiales y tareas se asocian a unidades específicas.
+  - Organización: Las unidades y temas organizan el contenido del curso de manera estructurada.
+  - Materiales y Tareas: Los materiales y tareas se asocian a temas específicos.
 
 - **Acceso a Materiales y Subidas de Archivos**:
   - Subir Materiales: Los profesores suben documentos, videos, enlaces, etc., con metadatos (título, descripción).
@@ -34,7 +35,7 @@ Basado en el concepto de sistema de gestión de aprendizaje (LMS) al estilo de M
   - Control de Acceso: Los estudiantes ven/descargan materiales basados en permisos; profesores editan/borran.
 
 - **Tareas y Exámenes**:
-  - Creación: Los profesores crean tareas/exámenes dentro de unidades, con fechas límite, fecha final opcional, instrucciones y configuración de trabajo en grupo.
+  - Creación: Los profesores crean tareas/exámenes dentro de temas, con fechas límite, fecha final opcional, instrucciones y configuración de trabajo en grupo.
   - Envío de Trabajos: Los estudiantes pueden subir documentos (PDF, Office, Canva) con un comentario opcional inicial. El sistema maneja versionado de entregas (cada nueva entrega crea una nueva versión sin eliminar las anteriores).
   - Trabajo en Grupo: Los profesores pueden habilitar trabajo en grupo, permitiendo que los estudiantes agreguen colaboradores a sus entregas.
   - Control de Fechas: El sistema marca entregas fuera de término y puede establecer una fecha final después de la cual no se permiten más entregas.
@@ -151,23 +152,23 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
     - Exportes: PDF y Excel con opción de resumen o completo.
 
 - **Módulo de Gestión de Unidades**:
-  - Responsabilidades: Creación de unidades dentro de cursos, organización del contenido, gestión de visibilidad (pausar/reanudar).
+  - Responsabilidades: Creación de unidades dentro de cursos, organización del contenido por temas, gestión de visibilidad (pausar/reanudar unidades y temas).
   - Dependencias: Gestión de Cursos, Gestión de Usuarios.
   - Tecnologías: App Django.
   - **Implementación Completada**:
-    - Modelos: Unit (con relación a Course, created_by, is_paused, order).
-    - Vistas: CRUD completo para unidades, integración con materiales y tareas.
-    - Formularios: UnitForm para crear y editar unidades.
-    - Templates: Vistas para listado, creación/edición y detalle de unidades.
-    - Permisos: Solo instructores y colaboradores pueden gestionar unidades.
+    - Modelos: Unit (relación con Course, created_by, is_paused, order) y Tema (relación con Unit, description, is_paused por defecto, order).
+    - Vistas: CRUD completo para unidades y temas, con detalle de tema que concentra materiales y tareas.
+    - Formularios: UnitForm para unidades, TemaForm para temas.
+    - Templates: Listado de unidades, detalle de unidad con listado de temas, detalle de tema con materiales y tareas.
+    - Permisos: Solo instructores y colaboradores pueden gestionar unidades y temas.
 
 - **Módulo de Gestión de Materiales**:
-  - Responsabilidades: Subidas de archivos y enlaces, control de acceso, configuraciones de visibilidad, asociación a unidades, publicación programada y notificaciones por correo.
-  - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
+  - Responsabilidades: Subidas de archivos y enlaces, control de acceso, configuraciones de visibilidad, asociación a temas, publicación programada y notificaciones por correo.
+  - Dependencias: Gestión de Cursos, Gestión de Unidades y Temas, Gestión de Usuarios.
   - Tecnologías: Django con bibliotecas de manejo de archivos.
   - **Implementación Completada**:
-    - Modelos: Material (con relación a Unit y Course, soporte para archivos y enlaces externos, nombres serializados para archivos; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos).
-    - Vistas: CRUD de materiales, carga de materiales en unidades, descarga de archivos, previsualización. Filtrado por is_published para alumnos.
+    - Modelos: Material (con relación a Tema y Course, soporte para archivos y enlaces externos, nombres serializados para archivos; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos).
+    - Vistas: CRUD de materiales, carga de materiales en temas, descarga de archivos, previsualización. Filtrado por is_published para alumnos.
     - Formularios: MaterialUploadForm, MaterialEditForm con validación de tipos de archivo y tamaño, y campos de publicación (publicar ahora, programar fecha/hora, enviar correo).
     - Templates: Vistas personalizadas para listado y gestión de materiales; formularios con sección “Publicación” para programar y notificar.
     - Seguridad: Validación de extensiones y tamaño de archivos, nombres serializados para almacenamiento seguro.
@@ -175,11 +176,11 @@ Cada módulo es una unidad autocontenida con responsabilidades y dependencias de
 
 - **Módulo de Tareas/Exámenes**:
   - Responsabilidades: Crear/enviar/calificar tareas/exámenes, gestión de entregas con versionado, trabajo en grupo, feedback y reentregas, sistema de comentarios, publicación programada y notificaciones por correo.
-  - Dependencias: Gestión de Cursos, Gestión de Unidades, Gestión de Usuarios.
+  - Dependencias: Gestión de Cursos, Gestión de Unidades y Temas, Gestión de Usuarios.
   - Tecnologías: Django.
   - **Implementación Completada**:
     - Modelos:
-      - Assignment: Tareas dentro de unidades con fechas límite, fecha final, trabajo en grupo opcional; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos.
+      - Assignment: Tareas dentro de temas con fechas límite, fecha final, trabajo en grupo opcional; is_published, scheduled_publish_at, send_notification_email para publicación programada y correos.
       - AssignmentSubmission: Entregas de estudiantes con versionado, estados (pending, submitted, returned, resubmitted), feedback del docente.
       - AssignmentCollaborator: Colaboradores para trabajo en grupo.
       - AssignmentComment: Sistema de comentarios/chat para cada entrega con soporte para respuestas anidadas.
@@ -281,15 +282,16 @@ Usando Docker Compose para entornos.
   - Exportes PDF/Excel (resumen o completo)
   - Vista individual del estudiante con notas
 
-- **Módulo de Gestión de Unidades**: ✅ Completado
+- **Módulo de Gestión de Unidades y Temas**: ✅ Completado
   - CRUD completo de unidades dentro de cursos
-  - Organización del contenido del curso
-  - Sistema de pausar/reanudar unidades
-  - Integración con materiales y tareas
+  - CRUD completo de temas dentro de unidades
+  - Temas en pausa por defecto con opción de reanudar
+  - Organización del contenido del curso por temas
+  - Integración de materiales y tareas a nivel de tema
 
 - **Módulo de Gestión de Materiales**: ✅ Completado
   - Carga de archivos y enlaces
-  - Asociación a unidades
+  - Asociación a temas
   - Nombres serializados para seguridad
   - Validación de tipos de archivo y tamaño
   - Control de acceso basado en permisos
@@ -298,7 +300,7 @@ Usando Docker Compose para entornos.
   - **Publicación y programación**: El docente elige si el material está disponible para alumnos (is_published), puede programar la publicación (scheduled_publish_at, p. ej. lunes 8:00) y optar por enviar correo a los alumnos inscritos al publicarse (send_notification_email). Publicación inmediata o por cron cada minuto. Zona horaria America/Argentina/Buenos_Aires.
 
 - **Módulo de Tareas/Exámenes**: ✅ Completado
-  - CRUD completo de tareas dentro de unidades
+  - CRUD completo de tareas dentro de temas
   - Sistema de entregas con versionado
   - Trabajo en grupo con colaboradores
   - Sistema de feedback y reentregas
@@ -372,7 +374,7 @@ Usando Docker Compose para entornos.
 
 1. **Sistema de Roles**: Estudiantes, Profesores, Administradores
 2. **Gestión de Cursos**: CRUD completo con colaboradores e inscripciones
-3. **Gestión de Unidades**: Organización del contenido del curso
+3. **Gestión de Unidades y Temas**: Organización del contenido del curso
 4. **Gestión de Materiales**: Archivos y enlaces con control de acceso
 5. **Sistema de Tareas**: Tareas con entregas, versionado, feedback y comentarios
 6. **Trabajo en Grupo**: Colaboradores en tareas

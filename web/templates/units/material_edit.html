@@ -8,7 +8,7 @@
         <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-edit"></i> Editar Material</h5>
-                <small class="text-muted">Unidad: {{ unit.title }} - Curso: {{ course.title }}</small>
+                <small class="text-muted">Unidad: {{ unit.title }} - Tema: {{ tema.title }} - Curso: {{ course.title }}</small>
             </div>
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
@@ -146,7 +146,7 @@
                     {% endif %}
 
                     <div class="d-flex justify-content-between">
-                        <a href="{% url 'units:unit_detail' course.id unit.id %}" class="btn btn-secondary">
+                        <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Volver
                         </a>
                         <button type="submit" class="btn btn-primary">

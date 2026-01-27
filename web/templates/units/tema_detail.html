@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ tema.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="fas fa-layer-group"></i> {{ tema.title }}</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'course_detail' course.id %}">{{ course.title }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'units:unit_list' course.id %}">Unidades</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'units:unit_detail' course.id unit.id %}">{{ unit.title }}</a></li>
+                <li class="breadcrumb-item active">{{ tema.title }}</li>
+            </ol>
+        </nav>
+    </div>
+    <div>
+        {% if can_manage %}
+        <a href="{% url 'units:material_upload' course.id unit.id tema.id %}" class="btn btn-success">
+            <i class="fas fa-upload"></i> Subir Material
+        </a>
+        {% endif %}
+        <a href="{% url 'units:unit_detail' course.id unit.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-info-circle"></i> Descripción</h5>
+                {% if tema.is_paused %}
+                <span class="badge bg-warning">
+                    <i class="fas fa-pause"></i> En Pausa
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p>{{ tema.description }}</p>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-sort-numeric-up"></i>
+                            <strong>Orden:</strong> {{ tema.order }}
+                        </small>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i>
+                            <strong>Creado:</strong> {{ tema.created_at|date:"d/m/Y" }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-file"></i> Materiales</h5>
+            </div>
+            <div class="card-body">
+                {% if materials %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Título</th>
+                                <th>Tipo</th>
+                                <th>Tamaño</th>
+                                <th>Subido</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for material in materials %}
+                            <tr>
+                                <td>
+                                    <strong>{{ material.title }}</strong>
+                                    {% if material.material_type == 'file' and material.original_filename %}
+                                    <br><small class="text-muted">
+                                        <i class="fas fa-file"></i> {{ material.original_filename }}
+                                    </small>
+                                    {% endif %}
+                                    {% if material.description %}
+                                    <br><small class="text-muted">{{ material.description|truncatewords:10 }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if material.material_type == 'file' %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-file"></i> Archivo
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-link"></i> Enlace
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if material.material_type == 'file' %}
+                                        {% if material.file_size %}
+                                            {{ material.file_size|filesizeformat }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ material.uploaded_at|date:"d/m/Y" }}</small>
+                                </td>
+                                <td>
+                                    {% if material.material_type == 'file' %}
+                                    <a href="{% url 'materials:material-download' material.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-download"></i> Descargar
+                                    </a>
+                                    {% else %}
+                                    <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info external-link-warning" data-link-url="{{ material.link_url }}">
+                                        <i class="fas fa-external-link-alt"></i> Abrir Enlace
+                                    </a>
+                                    {% endif %}
+                                    {% if can_manage %}
+                                    <div class="btn-group mt-2" role="group">
+                                        <a href="{% url 'units:material_edit' course.id unit.id tema.id material.id %}" class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </a>
+                                        <a href="{% url 'units:material_delete' course.id unit.id tema.id material.id %}" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-file fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No hay materiales en este tema.</p>
+                    {% if can_manage %}
+                    <a href="{% url 'units:material_upload' course.id unit.id tema.id %}" class="btn btn-success">
+                        <i class="fas fa-upload"></i> Subir Primer Material
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-tasks"></i> Tareas</h5>
+                {% if can_manage %}
+                <a href="{% url 'assignments:assignment_create' course.id unit.id tema.id %}" class="btn btn-sm btn-success">
+                    <i class="fas fa-plus"></i> Crear Tarea
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if assignments %}
+                <div class="list-group">
+                    {% for assignment in assignments %}
+                    <a href="{% url 'assignments:assignment_detail' course.id unit.id tema.id assignment.id %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ assignment.title }}</h6>
+                            {% if not assignment.is_active %}
+                            <span class="badge bg-secondary">Inactiva</span>
+                            {% elif assignment.is_late_submission %}
+                            <span class="badge bg-warning">Vencida</span>
+                            {% else %}
+                            <span class="badge bg-success">Activa</span>
+                            {% endif %}
+                        </div>
+                        <p class="mb-1"><small>{{ assignment.description|truncatewords:10 }}</small></p>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-times"></i> Fecha límite: {{ assignment.due_date|date:"d/m/Y H:i" }}
+                        </small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No hay tareas en este tema.</p>
+                    {% if can_manage %}
+                    <a href="{% url 'assignments:assignment_create' course.id unit.id tema.id %}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Crear Primera Tarea
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="mt-3">
+                    <a href="{% url 'assignments:assignment_list' course.id unit.id tema.id %}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-list"></i> Ver Todas las Tareas
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs"></i> Acciones</h5>
+            </div>
+            <div class="card-body">
+                {% if can_manage %}
+                <a href="{% url 'units:tema_edit' course.id unit.id tema.id %}" class="btn btn-warning w-100 mb-2">
+                    <i class="fas fa-edit"></i> Editar Tema
+                </a>
+                <form method="post" action="{% url 'units:tema_pause' course.id unit.id tema.id %}" class="mb-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-{% if tema.is_paused %}success{% else %}warning{% endif %} w-100">
+                        <i class="fas fa-{% if tema.is_paused %}play{% else %}pause{% endif %}"></i>
+                        {% if tema.is_paused %}Reanudar{% else %}Pausar{% endif %} Tema
+                    </button>
+                </form>
+                <a href="{% url 'units:tema_delete' course.id unit.id tema.id %}" class="btn btn-danger w-100 mb-2">
+                    <i class="fas fa-trash"></i> Eliminar Tema
+                </a>
+                {% endif %}
+                <a href="{% url 'units:unit_detail' course.id unit.id %}" class="btn btn-secondary w-100">
+                    <i class="fas fa-arrow-left"></i> Volver a la Unidad
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.external-link-warning').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const url = this.getAttribute('data-link-url') || this.getAttribute('href');
+        const message = 'Estás a punto de salir de la plataforma y acceder a un enlace externo.\n\n' +
+                       'URL: ' + url + '\n\n' +
+                       '¿Deseas continuar?';
+        if (confirm(message)) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

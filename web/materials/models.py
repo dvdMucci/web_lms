@@ -38,13 +38,11 @@ class Material(models.Model):
         related_name="materials",
         verbose_name="Curso"
     )
-    unit = models.ForeignKey(
-        'units.Unit',
+    tema = models.ForeignKey(
+        'units.Tema',
         on_delete=models.CASCADE,
         related_name="materials",
-        null=True,
-        blank=True,
-        verbose_name="Unidad"
+        verbose_name="Tema"
     )
     material_type = models.CharField(
         max_length=10,
@@ -118,14 +116,14 @@ class Material(models.Model):
             if not (is_instructor or is_collaborator or is_admin):
                 raise ValidationError("Solo el instructor, colaboradores o administradores pueden subir materiales a este curso.")
             
-            # Validate unit permissions if unit is specified
-            if self.unit_id is not None:
-                from units.models import Unit
+            # Validate tema permissions if tema is specified
+            if self.tema_id is not None:
+                from units.models import Tema
                 try:
-                    unit = Unit.objects.get(pk=self.unit_id)
-                    if unit.course_id != self.course_id:
-                        raise ValidationError("La unidad debe pertenecer al curso especificado.")
-                except Unit.DoesNotExist:
+                    tema = Tema.objects.get(pk=self.tema_id)
+                    if tema.unit.course_id != self.course_id:
+                        raise ValidationError("El tema debe pertenecer al curso especificado.")
+                except Tema.DoesNotExist:
                     pass
         
         # Validate material type

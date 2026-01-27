@@ -28,19 +28,6 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="{{ form.description.id_for_label }}" class="form-label">
-                            {{ form.description.label }}
-                        </label>
-                        {{ form.description }}
-                        {% if form.description.errors %}
-                            <div class="text-danger small">{{ form.description.errors }}</div>
-                        {% endif %}
-                        {% if form.description.help_text %}
-                            <div class="form-text">{{ form.description.help_text }}</div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
                         <label for="{{ form.order.id_for_label }}" class="form-label">
                             {{ form.order.label }}
                         </label>

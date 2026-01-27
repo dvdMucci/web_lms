@@ -67,20 +67,20 @@
                                     <div>
                                         <strong>{{ material.title }}</strong>
                                         <div class="text-muted small">
-                                            {{ material.course.title }}{% if material.unit %} - {{ material.unit.title }}{% endif %}
+                                            {{ material.course.title }}{% if material.tema %} - {{ material.tema.unit.title }} / {{ material.tema.title }}{% endif %}
                                         </div>
                                     </div>
-                                    {% if material.unit %}
+                                    {% if material.tema %}
                                         <div class="btn-group">
-                                            <a href="{% url 'units:material_edit' material.course.id material.unit.id material.id %}" class="btn btn-sm btn-outline-warning">
+                                            <a href="{% url 'units:material_edit' material.course.id material.tema.unit.id material.tema.id material.id %}" class="btn btn-sm btn-outline-warning">
                                                 <i class="fas fa-edit"></i> Editar
                                             </a>
-                                            <a href="{% url 'units:material_delete' material.course.id material.unit.id material.id %}" class="btn btn-sm btn-outline-danger">
+                                            <a href="{% url 'units:material_delete' material.course.id material.tema.unit.id material.tema.id material.id %}" class="btn btn-sm btn-outline-danger">
                                                 <i class="fas fa-trash"></i> Eliminar
                                             </a>
                                         </div>
                                     {% else %}
-                                        <span class="text-muted small">Sin unidad</span>
+                                        <span class="text-muted small">Sin tema</span>
                                     {% endif %}
                                 </li>
                             {% endfor %}
@@ -95,14 +95,14 @@
                                     <div>
                                         <strong>{{ assignment.title }}</strong>
                                         <div class="text-muted small">
-                                            {{ assignment.course.title }} - {{ assignment.unit.title }}
+                                            {{ assignment.course.title }} - {{ assignment.tema.unit.title }} / {{ assignment.tema.title }}
                                         </div>
                                     </div>
                                     <div class="btn-group">
-                                        <a href="{% url 'assignments:assignment_edit' assignment.course.id assignment.unit.id assignment.id %}" class="btn btn-sm btn-outline-warning">
+                                        <a href="{% url 'assignments:assignment_edit' assignment.course.id assignment.tema.unit.id assignment.tema.id assignment.id %}" class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-edit"></i> Editar
                                         </a>
-                                        <a href="{% url 'assignments:assignment_delete' assignment.course.id assignment.unit.id assignment.id %}" class="btn btn-sm btn-outline-danger">
+                                        <a href="{% url 'assignments:assignment_delete' assignment.course.id assignment.tema.unit.id assignment.tema.id assignment.id %}" class="btn btn-sm btn-outline-danger">
                                             <i class="fas fa-trash"></i> Eliminar
                                         </a>
                                     </div>

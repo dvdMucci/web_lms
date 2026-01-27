@@ -38,8 +38,6 @@
                 {% endif %}
             </div>
             <div class="card-body">
-                <p class="card-text">{{ unit.description|truncatewords:20 }}</p>
-                <hr>
                 <div class="mb-2">
                     <small class="text-muted">
                         <i class="fas fa-sort-numeric-up"></i> 
@@ -55,7 +53,7 @@
                 <div class="mb-2">
                     <small class="text-muted">
                         <i class="fas fa-file"></i> 
-                        <strong>Materiales:</strong> {{ unit.materials.count }}
+                        <strong>Temas:</strong> {{ unit.temas.count }}
                     </small>
                 </div>
             </div>
