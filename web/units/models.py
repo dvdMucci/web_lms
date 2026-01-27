@@ -96,7 +96,6 @@ class Tema(models.Model):
         verbose_name = 'Tema'
         verbose_name_plural = 'Temas'
         ordering = ['order', 'created_at']
-        unique_together = ['unit', 'order']
 
     def __str__(self):
         return f"{self.title} - {self.unit.title}"
