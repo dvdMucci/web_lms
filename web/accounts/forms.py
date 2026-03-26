@@ -11,6 +11,23 @@ class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
         fields = ('username', 'email', 'first_name', 'last_name', 'user_type')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['password1'].label = 'Contraseña'
+        self.fields['password2'].label = 'Repetir contraseña'
+        self.fields['password1'].help_text = 'Ingresá una contraseña segura.'
+        self.fields['password2'].help_text = 'Volvé a ingresar la contraseña para confirmarla.'
+
+        for field_name in ['password1', 'password2']:
+            self.fields[field_name].widget.attrs['class'] = 'form-control'
+            self.fields[field_name].widget.attrs['autocomplete'] = 'new-password'
+
+        self.fields['password1'].widget.attrs['placeholder'] = 'Ingresá la contraseña'
+        self.fields['password2'].widget.attrs['placeholder'] = 'Repetí la contraseña'
+
+        self.fields['password2'].error_messages['required'] = 'Debes repetir la contraseña.'
+        self.error_messages['password_mismatch'] = 'Las contraseñas no coinciden. Verificalas e intentá de nuevo.'
     
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -35,8 +52,21 @@ class StudentRegistrationForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['password1'].label = 'Contraseña'
+        self.fields['password2'].label = 'Repetir contraseña'
+        self.fields['password1'].help_text = 'Ingresá una contraseña segura.'
+        self.fields['password2'].help_text = 'Volvé a ingresar la contraseña para confirmarla.'
+
         for field_name in ['password1', 'password2']:
             self.fields[field_name].widget.attrs['class'] = 'form-control'
+            self.fields[field_name].widget.attrs['autocomplete'] = 'new-password'
+
+        self.fields['password1'].widget.attrs['placeholder'] = 'Ingresá tu contraseña'
+        self.fields['password2'].widget.attrs['placeholder'] = 'Repetí tu contraseña'
+
+        # Mensajes claros en español para el flujo de confirmación de contraseña.
+        self.fields['password2'].error_messages['required'] = 'Debes repetir la contraseña.'
+        self.error_messages['password_mismatch'] = 'Las contraseñas no coinciden. Verificalas e intentá de nuevo.'
 
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()

@@ -18,14 +18,19 @@ environ.Env.read_env(os.path.join(BASE_DIR, '../.env'))
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-qaldz7)v6sm7sruf@r%*wah$c5n5%&rj)y8#9(l)c4+8(k^k!y'
+# Produccion: definir DJANGO_SECRET_KEY en el entorno (.env del host con Docker Compose) y rotar si estuvo en el repo.
+SECRET_KEY = env(
+    'DJANGO_SECRET_KEY',
+    default='django-insecure-qaldz7)v6sm7sruf@r%*wah$c5n5%&rj)y8#9(l)c4+8(k^k!y',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Produccion: DJANGO_DEBUG=False en .env del host (Compose). Desarrollo: DJANGO_DEBUG=True.
+DEBUG = env.bool('DJANGO_DEBUG', default=False)
 
 ALLOWED_HOSTS = ['*', 'marinaojeda.ar', 'www.marinaojeda.ar', 'localhost', '127.0.0.1']
 
-# Configuración CSRF para dominios confiables
+# Configuraci?n CSRF para dominios confiables
 CSRF_TRUSTED_ORIGINS = [
     'https://marinaojeda.ar',
     'https://www.marinaojeda.ar',
@@ -33,9 +38,15 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5801',
 ]
 
-# Configuración para proxy reverso (nginx)
-# Django necesita saber que está detrás de un proxy que maneja SSL
+# Configuraci?n para proxy reverso (nginx)
+# Django necesita saber que est? detr?s de un proxy que maneja SSL
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Cookies solo por HTTPS; SameSite Lax reduce riesgo CSRF en navegaciones cruzadas.
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Application definition
 
@@ -106,8 +117,8 @@ DATABASES = {
         'NAME': env('DB_NAME'),
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
-        # Usar IP de la red web_lms_default (172.31.0.2) para evitar problemas de autenticación
-        # cuando el contenedor está en múltiples redes. Si DB_HOST es 'db', usar la IP directa.
+        # Usar IP de la red web_lms_default (172.31.0.2) para evitar problemas de autenticaci?n
+        # cuando el contenedor est? en m?ltiples redes. Si DB_HOST es 'db', usar la IP directa.
         'HOST': '172.31.0.2' if env('DB_HOST', default='') == 'db' else env('DB_HOST'),
         'PORT': env('DB_PORT'),
         'OPTIONS': {
@@ -116,12 +127,12 @@ DATABASES = {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES', character_set_connection=utf8mb4, collation_connection=utf8mb4_unicode_ci",
             'use_unicode': True,
         },
-        'CONN_MAX_AGE': 0,  # Deshabilitar pool de conexiones para evitar problemas de autenticación
-        'ATOMIC_REQUESTS': True,  # Transacciones automáticas
+        'CONN_MAX_AGE': 0,  # Deshabilitar pool de conexiones para evitar problemas de autenticaci?n
+        'ATOMIC_REQUESTS': True,  # Transacciones autom?ticas
     }
 }
 
-# Configuración de conexión a la base de datos
+# Configuraci?n de conexi?n a la base de datos
 DB_CONNECTION_TIMEOUT = 20
 DB_READ_TIMEOUT = 30
 DB_WRITE_TIMEOUT = 30
@@ -174,10 +185,10 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 # OTP Settings
-OTP_TOTP_ISSUER = 'Marina Ojeda LMS' # Nombre del emisor para la aplicación 2FA
+OTP_TOTP_ISSUER = 'Marina Ojeda LMS' # Nombre del emisor para la aplicaci?n 2FA
 OTP_LOGIN_URL = '/accounts/login/' # URL de login para OTP
 
-# Configuración de Mailgun (notificaciones)
+# Configuraci?n de Mailgun (notificaciones)
 MAILGUN_API_KEY = env('MAILGUN_API_KEY', default='')
 MAILGUN_DOMAIN = env('MAILGUN_DOMAIN', default='')
 MAILGUN_BASE_URL = env('MAILGUN_BASE_URL', default='https://api.mailgun.net')

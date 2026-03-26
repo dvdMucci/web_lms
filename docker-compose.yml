@@ -32,6 +32,8 @@ services:
         ./wait-for-db.sh sh -c 'python manage.py makemigrations accounts && python manage.py makemigrations assignments && python manage.py makemigrations core && python manage.py makemigrations courses && python manage.py makemigrations attendance && python manage.py makemigrations materials && python manage.py makemigrations units && python manage.py migrate && python create_superuser.py && exec python manage.py runserver 0.0.0.0:8000'
     ports:
       - "5801:8000"
+    # Variables de Django (DJANGO_DEBUG, DJANGO_SECRET_KEY, DB_*, etc.) van en ./.env del host.
+    # Tras editar .env: docker compose up -d --force-recreate web (restart no actualiza env_file).
     env_file:
       - ./.env
     environment:
