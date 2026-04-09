@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro no disponible{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white text-center">
+                <h4><i class="fas fa-exclamation-triangle"></i> Registro no disponible</h4>
+            </div>
+            <div class="card-body">
+                <p>Este enlace de registro no está disponible.</p>
+                <ul>
+                    <li>Puede haber expirado.</li>
+                    <li>Puede haber sido cancelado por el docente.</li>
+                    <li>Puede haber alcanzado su límite de usos.</li>
+                </ul>
+                <a href="{% url 'login' %}" class="btn btn-primary">Ir a iniciar sesión</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

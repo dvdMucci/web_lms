@@ -11,6 +11,8 @@ from django.core.paginator import Paginator
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 from django.urls import reverse
 from django.conf import settings
+from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from urllib.parse import urlencode
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django_otp.util import random_hex # No usado directamente en el código provisto, pero útil para OTP
@@ -18,10 +20,18 @@ import qrcode
 import io
 import base64
 import pyotp # Necesario para la generación de la URL de configuración, aunque TOTPDevice lo maneja
-from .models import CustomUser
+from .models import CustomUser, StudentRegistrationToken, UserActivityLog
+from .activity import log_user_activity
 from core.services.mailgun import MailgunClient
 from core.notifications import notify_email_verification
-from .forms import CustomUserCreationForm, ProfileForm, LoginForm, ChangePasswordForm, StudentRegistrationForm
+from .forms import (
+    CustomUserCreationForm,
+    ProfileForm,
+    LoginForm,
+    ChangePasswordForm,
+    StudentRegistrationForm,
+    StudentRegistrationTokenCreateForm,
+)
 
 
 EMAIL_VERIFICATION_SIGNER = TimestampSigner(salt='email-verification')
@@ -47,6 +57,9 @@ def _can_send_verification_email(user):
 
 
 def _send_verification_email(request, user):
+    if not user.email:
+        return False, 0
+
     can_send, remaining = _can_send_verification_email(user)
     if not can_send:
         return False, remaining
@@ -64,12 +77,12 @@ def login_view(request):
         if form.is_valid():
             user = form.get_user()
             login(request, user)
-            if user.is_student() and not user.is_email_verified():
-                messages.warning(
-                    request,
-                    'Debes verificar tu correo para habilitar tu cuenta.'
-                )
-                return redirect('email_verification_required')
+            log_user_activity(
+                action=UserActivityLog.ACTION_LOGIN,
+                actor=user,
+                target_user=user,
+                details='Inicio de sesión exitoso',
+            )
             return redirect('dashboard')
     else:
         form = LoginForm()
@@ -78,32 +91,95 @@ def login_view(request):
 
 
 def register_view(request):
+    messages.error(
+        request,
+        'El registro directo está deshabilitado. Solicitá a tu docente un enlace o QR de registro.'
+    )
+    return redirect('login')
+
+
+def register_with_token_view(request, token):
+    registration_token = get_object_or_404(StudentRegistrationToken, token=token)
+    if not registration_token.can_consume():
+        return render(
+            request,
+            'accounts/register_token_invalid.html',
+            {'registration_token': registration_token},
+        )
+
     if request.method == 'POST':
         form = StudentRegistrationForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            sent, remaining = _send_verification_email(request, user)
-            if sent:
-                messages.success(
-                    request,
-                    'Registro exitoso. Te enviamos un correo para verificar tu cuenta.'
+            with transaction.atomic():
+                registration_token_locked = StudentRegistrationToken.objects.select_for_update().get(
+                    pk=registration_token.pk
                 )
-            else:
-                if remaining:
-                    messages.info(
-                        request,
-                        f'Debes esperar {remaining} segundos para reenviar el correo.'
-                    )
-                else:
-                    messages.warning(
-                        request,
-                        'Registro exitoso. No pudimos enviar el correo de verificación.'
-                    )
+                if not registration_token_locked.consume():
+                    messages.error(request, 'El token ya no está disponible.')
+                    return redirect('login')
+                user = form.save()
             return redirect('login')
     else:
         form = StudentRegistrationForm()
 
-    return render(request, 'accounts/register.html', {'form': form})
+    return render(
+        request,
+        'accounts/register.html',
+        {'form': form, 'registration_token': registration_token},
+    )
+
+
+def _can_manage_registration_tokens(user):
+    return user.is_authenticated and (user.is_teacher() or user.user_type == 'admin')
+
+
+@login_required
+def registration_token_list_create(request):
+    if not _can_manage_registration_tokens(request.user):
+        messages.error(request, 'No tenés permisos para gestionar tokens de registro.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = StudentRegistrationTokenCreateForm(request.POST)
+        if form.is_valid():
+            registration_token = form.save(commit=False)
+            registration_token.created_by = request.user
+            registration_token.token = StudentRegistrationToken.generate_token()
+            registration_token.save()
+            messages.success(request, 'Token de registro creado correctamente.')
+            return redirect('registration_token_list')
+    else:
+        form = StudentRegistrationTokenCreateForm()
+
+    tokens = StudentRegistrationToken.objects.select_related('created_by').all()
+    for token in tokens:
+        token.register_url = request.build_absolute_uri(
+            reverse('register_with_token', kwargs={'token': token.token})
+        )
+        qr = qrcode.QRCode(version=1, box_size=4, border=1)
+        qr.add_data(token.register_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        token.qr_code_data = base64.b64encode(buffer.getvalue()).decode()
+    return render(
+        request,
+        'accounts/registration_token_list.html',
+        {'form': form, 'tokens': tokens},
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+def registration_token_cancel(request, token_id):
+    if not _can_manage_registration_tokens(request.user):
+        messages.error(request, 'No tenés permisos para gestionar tokens de registro.')
+        return redirect('dashboard')
+    registration_token = get_object_or_404(StudentRegistrationToken, id=token_id)
+    registration_token.cancel()
+    messages.success(request, 'Token cancelado correctamente.')
+    return redirect('registration_token_list')
 
 
 @login_required
@@ -123,12 +199,16 @@ def email_verification_required(request):
 @login_required
 @require_http_methods(["POST"])
 def email_verification_resend(request):
+    next_url = request.POST.get('next') or request.GET.get('next')
     user = request.user
     if not user.is_student():
-        return redirect('dashboard')
+        return redirect(next_url or 'dashboard')
     if user.is_email_verified():
         messages.info(request, 'Tu correo ya está verificado.')
-        return redirect('dashboard')
+        return redirect(next_url or 'dashboard')
+    if not user.email:
+        messages.warning(request, 'Primero debés cargar un correo en tu perfil.')
+        return redirect(next_url or 'profile')
 
     sent, remaining = _send_verification_email(request, user)
     if sent:
@@ -142,7 +222,7 @@ def email_verification_resend(request):
         else:
             messages.error(request, 'No se pudo enviar el correo de verificación.')
 
-    return redirect('email_verification_required')
+    return redirect(next_url or 'email_verification_required')
 
 
 @require_http_methods(["GET"])
@@ -187,6 +267,13 @@ def email_verify(request):
 
 @login_required
 def logout_view(request):
+    if request.user.is_authenticated:
+        log_user_activity(
+            action=UserActivityLog.ACTION_LOGOUT,
+            actor=request.user,
+            target_user=request.user,
+            details='Cierre de sesión',
+        )
     logout(request)
     return redirect('login')
 
@@ -196,6 +283,56 @@ def dashboard(request):
         'user': request.user,
         'user_count': CustomUser.objects.count() if request.user.can_manage_users() else None,
     }
+
+    if request.user.is_student():
+        from assignments.models import Assignment, AssignmentSubmission
+        from courses.models import Enrollment
+
+        approved_enrollment_exists = Enrollment.objects.filter(
+            student=request.user,
+            status='approved',
+            course=OuterRef('course'),
+        )
+        student_submission_exists = AssignmentSubmission.objects.filter(
+            assignment=OuterRef('pk'),
+            student=request.user,
+        )
+        pending_assignments = (
+            Assignment.objects.filter(
+                is_active=True,
+                is_published=True,
+                tema__is_paused=False,
+                tema__unit__is_paused=False,
+                course__is_active=True,
+                course__is_paused=False,
+            )
+            .annotate(
+                is_enrolled=Exists(approved_enrollment_exists),
+                has_submission=Exists(student_submission_exists),
+            )
+            .filter(is_enrolled=True, has_submission=False)
+            .select_related('course', 'tema', 'tema__unit')
+            .order_by('due_date')[:10]
+        )
+        context['pending_assignments'] = pending_assignments
+    elif request.user.is_teacher() or request.user.user_type == 'admin':
+        from courses.models import Enrollment
+
+        if request.user.user_type == 'admin':
+            pending_enrollments = (
+                Enrollment.objects.filter(status='pending')
+                .select_related('course', 'student')
+                .order_by('-enrolled_at')[:10]
+            )
+        else:
+            pending_enrollments = (
+                Enrollment.objects.filter(status='pending')
+                .filter(Q(course__instructor=request.user) | Q(course__collaborators=request.user))
+                .select_related('course', 'student')
+                .distinct()
+                .order_by('-enrolled_at')[:10]
+            )
+        context['pending_enrollments'] = pending_enrollments
     
     # Si el usuario es administrador, incluir información de almacenamiento
     if request.user.can_manage_users():
@@ -217,10 +354,24 @@ def dashboard(request):
 @login_required
 def profile_view(request):
     if request.method == 'POST':
+        previous_email = (request.user.email or '').strip().lower()
         form = ProfileForm(request.POST, instance=request.user)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Perfil actualizado correctamente')
+            user = form.save(commit=False)
+            current_email = (user.email or '').strip().lower()
+            user.email = current_email
+
+            if current_email != previous_email:
+                user.email_verified_at = None
+                user.email_verification_sent_at = None
+                if current_email:
+                    messages.info(
+                        request,
+                        'Tu correo cambió. Necesitás validarlo para recibir notificaciones por email.'
+                    )
+
+            user.save()
+            messages.success(request, 'Perfil actualizado correctamente.')
             return redirect('profile')
     else:
         form = ProfileForm(instance=request.user)
@@ -307,8 +458,80 @@ def user_list(request):
     paginator = Paginator(users, 10) # Paginación de 10 usuarios por página
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
-    return render(request, 'accounts/user_list.html', {'page_obj': page_obj})
+
+    action_filter = (request.GET.get('action') or '').strip()
+    actor_filter = (request.GET.get('actor') or '').strip()
+    date_from_filter = (request.GET.get('date_from') or '').strip()
+    date_to_filter = (request.GET.get('date_to') or '').strip()
+
+    user_ids = [user.id for user in page_obj.object_list]
+    activity_by_user = {user_id: [] for user_id in user_ids}
+    logs = UserActivityLog.objects.filter(target_user_id__in=user_ids).select_related('actor', 'target_user')
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+    if actor_filter:
+        logs = logs.filter(actor__username__icontains=actor_filter)
+    if date_from_filter:
+        logs = logs.filter(created_at__date__gte=date_from_filter)
+    if date_to_filter:
+        logs = logs.filter(created_at__date__lte=date_to_filter)
+
+    for log in logs:
+        bucket = activity_by_user.get(log.target_user_id)
+        if bucket is not None and len(bucket) < 1:
+            bucket.append(log)
+    for user_obj in page_obj.object_list:
+        user_obj.recent_activity = activity_by_user.get(user_obj.id, [])
+
+    query_params = request.GET.copy()
+    if 'page' in query_params:
+        query_params.pop('page')
+    querystring = query_params.urlencode()
+
+    return render(
+        request,
+        'accounts/user_list.html',
+        {
+            'page_obj': page_obj,
+            'action_choices': UserActivityLog.ACTION_CHOICES,
+            'selected_action': action_filter,
+            'selected_actor': actor_filter,
+            'selected_date_from': date_from_filter,
+            'selected_date_to': date_to_filter,
+            'querystring': querystring,
+        },
+    )
+
+
+@user_passes_test(is_admin)
+def user_activity_list(request, user_id):
+    target_user = get_object_or_404(CustomUser, id=user_id)
+    action_filter = (request.GET.get('action') or '').strip()
+
+    logs = UserActivityLog.objects.filter(target_user=target_user).select_related('actor', 'target_user')
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+
+    paginator = Paginator(logs, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    query_params = request.GET.copy()
+    if 'page' in query_params:
+        query_params.pop('page')
+    querystring = query_params.urlencode()
+
+    return render(
+        request,
+        'accounts/user_activity_list.html',
+        {
+            'target_user': target_user,
+            'page_obj': page_obj,
+            'action_choices': UserActivityLog.ACTION_CHOICES,
+            'selected_action': action_filter,
+            'querystring': querystring,
+        },
+    )
 
 @user_passes_test(is_admin)
 def user_create(request):
@@ -316,6 +539,12 @@ def user_create(request):
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            log_user_activity(
+                action=UserActivityLog.ACTION_USER_CREATED,
+                actor=request.user,
+                target_user=user,
+                details='Alta de usuario desde gestión de usuarios',
+            )
             messages.success(request, f'Usuario {user.username} creado correctamente')
             return redirect('user_list')
     else:
@@ -337,6 +566,12 @@ def user_edit(request, user_id):
             user.user_type = user_type
             user.is_active = is_active
             user.save() # Ahora guarda en la BD
+            log_user_activity(
+                action=UserActivityLog.ACTION_USER_UPDATED,
+                actor=request.user,
+                target_user=user,
+                details='Edición de usuario desde gestión de usuarios',
+            )
             messages.success(request, f'Usuario {user.username} actualizado correctamente')
             return redirect('user_list')
     else:
@@ -359,6 +594,13 @@ def user_delete(request, user_id):
         messages.error(request, 'No puedes eliminar tu propia cuenta')
     else:
         username = user.username
+        log_user_activity(
+            action=UserActivityLog.ACTION_USER_DELETED,
+            actor=request.user,
+            target_user=None,
+            target_username=username,
+            details='Eliminación de usuario desde gestión de usuarios',
+        )
         user.delete()
         messages.success(request, f'Usuario {username} eliminado correctamente')
     

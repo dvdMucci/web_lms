@@ -11,6 +11,8 @@ from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, As
 from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
 from units.models import Unit, Tema
+from accounts.models import UserActivityLog
+from accounts.activity import log_user_activity
 
 
 @login_required
@@ -123,6 +125,11 @@ def assignment_create(request, course_id, unit_id, tema_id):
                         messages.success(request, f'Tarea "{assignment.title}" creada exitosamente. Se publicará el {assignment.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.')
                     else:
                         messages.success(request, f'Tarea "{assignment.title}" creada exitosamente.')
+                log_user_activity(
+                    action=UserActivityLog.ACTION_ASSIGNMENT_CREATED,
+                    actor=request.user,
+                    details=f'Tarea "{assignment.title}" creada en "{course.title}"',
+                )
                 
                 return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
             except ValidationError as e:
@@ -177,6 +184,11 @@ def assignment_edit(request, course_id, unit_id, tema_id, assignment_id):
                         messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente. (Error al enviar notificaciones)')
                 else:
                     messages.success(request, f'Tarea "{assignment.title}" actualizada exitosamente.')
+                log_user_activity(
+                    action=UserActivityLog.ACTION_ASSIGNMENT_UPDATED,
+                    actor=request.user,
+                    details=f'Tarea "{assignment.title}" actualizada en "{course.title}"',
+                )
                 
                 return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
             except ValidationError as e:
@@ -213,6 +225,11 @@ def assignment_delete(request, course_id, unit_id, tema_id, assignment_id):
 
     if request.method == 'POST':
         assignment_title = assignment.title
+        log_user_activity(
+            action=UserActivityLog.ACTION_ASSIGNMENT_DELETED,
+            actor=request.user,
+            details=f'Tarea "{assignment_title}" eliminada de "{course.title}"',
+        )
         assignment.delete()
         messages.success(request, f'Tarea "{assignment_title}" eliminada exitosamente.')
         return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
@@ -391,6 +408,11 @@ def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
                     )
                 
                 messages.success(request, f'Entrega subida exitosamente (Versión {submission.version}).')
+                log_user_activity(
+                    action=UserActivityLog.ACTION_SUBMISSION_UPLOADED,
+                    actor=request.user,
+                    details=f'Entrega subida en tarea "{assignment.title}" (v{submission.version})',
+                )
                 return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
             except ValidationError as e:
                 messages.error(request, str(e))
@@ -649,6 +671,11 @@ def submission_view(request, course_id, unit_id, tema_id, assignment_id, submiss
                 else:
                     # For Office documents, still show inline but browser may download
                     response['Content-Disposition'] = f'inline; filename="{filename}"'
+                log_user_activity(
+                    action=UserActivityLog.ACTION_SUBMISSION_VIEWED,
+                    actor=request.user,
+                    details=f'Entrega visualizada de tarea "{assignment.title}"',
+                )
                 return response
         except FileNotFoundError:
             raise Http404("Archivo no encontrado.")
@@ -684,6 +711,11 @@ def submission_download(request, course_id, unit_id, tema_id, assignment_id, sub
                 )
                 filename = submission.original_filename if submission.original_filename else submission.file.name.split("/")[-1]
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                log_user_activity(
+                    action=UserActivityLog.ACTION_SUBMISSION_DOWNLOADED,
+                    actor=request.user,
+                    details=f'Entrega descargada de tarea "{assignment.title}"',
+                )
                 return response
         except FileNotFoundError:
             raise Http404("Archivo no encontrado.")

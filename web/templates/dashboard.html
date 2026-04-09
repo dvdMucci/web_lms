@@ -181,6 +181,32 @@
             </div>
         </div>
     </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-tasks"></i> Tareas pendientes</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_assignments %}
+                    <ul class="list-group">
+                        {% for assignment in pending_assignments %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ assignment.title }}</strong><br>
+                                <small class="text-muted">{{ assignment.course.title }} - {{ assignment.tema.unit.title }}</small>
+                            </div>
+                            <a href="{% url 'assignments:assignment_detail' assignment.course.id assignment.tema.unit.id assignment.tema.id assignment.id %}" class="btn btn-sm btn-outline-primary">
+                                Ver
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0 text-muted">No tenés tareas pendientes.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
     {% elif user.user_type == 'teacher' or user.user_type == 'admin' %}
     <div class="col-md-6">
         <div class="card">
@@ -194,6 +220,35 @@
                 <a href="{% url 'course_create' %}" class="btn btn-primary ms-2">
                     <i class="fas fa-plus"></i> Crear Curso
                 </a>
+                <a href="{% url 'registration_token_list' %}" class="btn btn-outline-success ms-2">
+                    <i class="fas fa-qrcode"></i> Tokens de Registro
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-user-clock"></i> Alumnos por aceptar</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_enrollments %}
+                    <ul class="list-group">
+                        {% for enrollment in pending_enrollments %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</strong><br>
+                                <small class="text-muted">{{ enrollment.course.title }}</small>
+                            </div>
+                            <a href="{% url 'course_detail' enrollment.course.id %}" class="btn btn-sm btn-outline-primary">
+                                Revisar
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-0 text-muted">No hay alumnos pendientes de aprobación.</p>
+                {% endif %}
             </div>
         </div>
     </div>

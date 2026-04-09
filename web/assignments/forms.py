@@ -1,5 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
 from courses.models import Enrollment
 import os
@@ -60,12 +61,26 @@ class AssignmentForm(forms.ModelForm):
         self.course = kwargs.pop('course', None)
         self.tema = kwargs.pop('tema', None)
         super().__init__(*args, **kwargs)
+        datetime_local_format = '%Y-%m-%dT%H:%M'
+
+        # Forzar formato de render para que datetime-local precargue correctamente
+        for name in ('due_date', 'final_date', 'scheduled_publish_at'):
+            self.fields[name].widget.format = datetime_local_format
+
         # Aceptar formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
         for name in ('due_date', 'final_date', 'scheduled_publish_at'):
             self.fields[name].input_formats = [
                 '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
                 '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M',
             ]
+
+        # En edición, mostrar la fecha/hora ya guardada en formato esperado
+        if self.instance and self.instance.pk:
+            for name in ('due_date', 'final_date', 'scheduled_publish_at'):
+                value = getattr(self.instance, name, None)
+                if value:
+                    value = timezone.localtime(value)
+                    self.initial[name] = value.strftime(datetime_local_format)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -87,7 +102,6 @@ class AssignmentForm(forms.ModelForm):
             })
         
         if scheduled_publish_at:
-            from django.utils import timezone
             dt = scheduled_publish_at
             if timezone.is_naive(dt):
                 dt = timezone.make_aware(dt, timezone.get_current_timezone())

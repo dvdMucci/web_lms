@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin # El UserAdmin base de Django
-from .models import CustomUser
+from .models import CustomUser, StudentRegistrationToken, UserActivityLog
 from .forms import CustomUserCreationForm, CustomUserChangeForm
 
 @admin.register(CustomUser) # Registra tu modelo CustomUser en el admin
@@ -20,3 +20,27 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('user_type', 'email')
         }),
     )
+
+
+@admin.register(StudentRegistrationToken)
+class StudentRegistrationTokenAdmin(admin.ModelAdmin):
+    list_display = (
+        'token',
+        'created_by',
+        'starts_at',
+        'expires_at',
+        'is_active',
+        'uses_count',
+        'max_uses',
+    )
+    list_filter = ('is_active', 'starts_at', 'expires_at')
+    search_fields = ('token', 'description', 'created_by__username')
+    readonly_fields = ('uses_count', 'cancelled_at', 'created_at', 'updated_at')
+
+
+@admin.register(UserActivityLog)
+class UserActivityLogAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'action', 'actor', 'target_username', 'target_user')
+    list_filter = ('action', 'created_at')
+    search_fields = ('target_username', 'details', 'actor__username', 'target_user__username')
+    readonly_fields = ('created_at',)

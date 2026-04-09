@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Tokens de registro{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="fas fa-qrcode"></i> Tokens de registro de alumnos</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Crear token</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.description.id_for_label }}">Descripción</label>
+                        {{ form.description }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.starts_at.id_for_label }}">Inicio</label>
+                        {{ form.starts_at }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.expires_at.id_for_label }}">Expira</label>
+                        {{ form.expires_at }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.max_uses.id_for_label }}">Usos máximos (opcional)</label>
+                        {{ form.max_uses }}
+                    </div>
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary w-100">Crear token</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Tokens existentes</h5>
+            </div>
+            <div class="card-body">
+                {% if tokens %}
+                    {% for token in tokens %}
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <p class="mb-1"><strong>Descripción:</strong> {{ token.description|default:"Sin descripción" }}</p>
+                                <p class="mb-1"><strong>Estado:</strong>
+                                    {% if token.can_consume %}
+                                        <span class="badge bg-success">Vigente</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No disponible</span>
+                                    {% endif %}
+                                </p>
+                                <p class="mb-1"><strong>Vigencia:</strong> {{ token.starts_at }} - {{ token.expires_at }}</p>
+                                <p class="mb-1"><strong>Usos:</strong> {{ token.uses_count }}{% if token.max_uses %}/{{ token.max_uses }}{% else %} (sin límite){% endif %}</p>
+                                <p class="mb-2"><strong>Enlace:</strong> <a href="{{ token.register_url }}" target="_blank">{{ token.register_url }}</a></p>
+                            </div>
+                            <div class="text-center">
+                                <img src="data:image/png;base64,{{ token.qr_code_data }}" alt="QR token" class="img-thumbnail" />
+                            </div>
+                        </div>
+                        {% if token.is_active %}
+                        <form method="post" action="{% url 'registration_token_cancel' token.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Cancelar token</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="mb-0 text-muted">No hay tokens creados todavía.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

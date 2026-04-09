@@ -10,6 +10,8 @@ from django.core.files.storage import default_storage
 from .models import Material
 from .serializers import MaterialSerializer, MaterialUploadSerializer
 from courses.models import Enrollment, Course
+from accounts.models import UserActivityLog
+from accounts.activity import log_user_activity
 
 
 class IsInstructorOrAdmin(permissions.BasePermission):
@@ -134,6 +136,11 @@ class MaterialDownloadView(APIView):
                     # Use original filename if available, otherwise use stored filename
                     filename = material.original_filename if material.original_filename else material.file.name.split("/")[-1]
                     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    log_user_activity(
+                        action=UserActivityLog.ACTION_MATERIAL_DOWNLOADED,
+                        actor=request.user,
+                        details=f'Material "{material.title}" descargado',
+                    )
                     return response
             except FileNotFoundError:
                 raise Http404("Archivo no encontrado.")

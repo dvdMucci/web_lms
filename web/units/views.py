@@ -8,6 +8,8 @@ import os
 from .models import Unit, Tema
 from .forms import UnitForm, TemaForm, MaterialUploadForm, MaterialEditForm
 from courses.models import Course, Enrollment
+from accounts.models import UserActivityLog
+from accounts.activity import log_user_activity
 
 @login_required
 def unit_list(request, course_id):
@@ -452,6 +454,11 @@ def material_upload(request, course_id, unit_id, tema_id):
                     messages.success(request, f'Material "{material.title}" subido exitosamente. Se publicará el {material.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.')
                 else:
                     messages.success(request, f'Material "{material.title}" subido exitosamente.')
+            log_user_activity(
+                action=UserActivityLog.ACTION_MATERIAL_UPLOADED,
+                actor=request.user,
+                details=f'Material "{material.title}" subido en "{course.title}"',
+            )
 
             return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     else:
@@ -504,6 +511,11 @@ def material_edit(request, course_id, unit_id, tema_id, material_id):
                     messages.success(request, f'Material "{material.title}" actualizado exitosamente. (Error al enviar notificaciones)')
             else:
                 messages.success(request, f'Material "{material.title}" actualizado exitosamente.')
+            log_user_activity(
+                action=UserActivityLog.ACTION_MATERIAL_UPDATED,
+                actor=request.user,
+                details=f'Material "{material.title}" actualizado en "{course.title}"',
+            )
             
             return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     else:
@@ -536,6 +548,11 @@ def material_delete(request, course_id, unit_id, tema_id, material_id):
 
     if request.method == 'POST':
         material_title = material.title
+        log_user_activity(
+            action=UserActivityLog.ACTION_MATERIAL_DELETED,
+            actor=request.user,
+            details=f'Material "{material_title}" eliminado de "{course.title}"',
+        )
         material.delete()
         messages.success(request, f'Material "{material_title}" eliminado exitosamente.')
         return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)

@@ -31,6 +31,17 @@
                     <div class="mb-3">
                         <label for="{{ form.email.id_for_label }}" class="form-label">Email</label>
                         {{ form.email }}
+                        <div class="mt-2">
+                            {% if user.email %}
+                                {% if user.is_email_verified %}
+                                    <span class="badge bg-success">Correo verificado</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Correo no verificado</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">Sin correo cargado</span>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -50,6 +61,15 @@
                 <a href="{% url 'change_password' %}" class="btn btn-warning mt-3">
                     <i class="fas fa-key"></i> Cambiar Contraseña
                 </a>
+                {% if user.is_student and user.email and not user.is_email_verified %}
+                <form method="post" action="{% url 'email_verification_resend' %}" class="mt-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'profile' %}">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-paper-plane"></i> Enviar correo de validación
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
 

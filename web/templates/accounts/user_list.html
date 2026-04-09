@@ -10,6 +10,40 @@
     </a>
 </div>
 
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Acción</label>
+                <select name="action" class="form-select">
+                    <option value="">Todas</option>
+                    {% for action_value, action_label in action_choices %}
+                    <option value="{{ action_value }}" {% if selected_action == action_value %}selected{% endif %}>
+                        {{ action_label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Actor</label>
+                <input type="text" name="actor" class="form-control" value="{{ selected_actor }}" placeholder="usuario admin">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <input type="date" name="date_from" class="form-control" value="{{ selected_date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <input type="date" name="date_to" class="form-control" value="{{ selected_date_to }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                <a href="{% url 'user_list' %}" class="btn btn-outline-secondary w-100">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -24,6 +58,7 @@
                         <th>Telegram</th>
                         <th>Estado</th>
                         <th>Registrado</th>
+                        <th>Actividad reciente</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -63,6 +98,26 @@
                         </td>
                         <td>{{ user_obj.date_joined|date:"d/m/Y" }}</td>
                         <td>
+                            {% if user_obj.recent_activity %}
+                                {% with log=user_obj.recent_activity.0 %}
+                                <div class="small">
+                                    <span class="badge bg-light text-dark">{{ log.get_action_display }}</span>
+                                    <span class="text-muted">{{ log.created_at|date:"d/m H:i" }}</span>
+                                    {% if log.actor %}
+                                        <span class="text-muted">por {{ log.actor.username }}</span>
+                                    {% endif %}
+                                </div>
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-muted small">Sin actividad registrada</span>
+                            {% endif %}
+                            <div class="mt-2">
+                                <a href="{% url 'user_activity_list' user_obj.id %}" class="btn btn-sm btn-outline-secondary">
+                                    Ver más
+                                </a>
+                            </div>
+                        </td>
+                        <td>
                             <div class="btn-group btn-group-sm">
                                 <a href="{% url 'user_edit' user_obj.id %}" class="btn btn-outline-primary" title="Editar">
                                     <i class="fas fa-edit"></i>
@@ -81,7 +136,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <i class="fas fa-users fa-3x text-muted mb-3"></i>
                             <p class="text-muted">No hay usuarios registrados</p>
                         </td>
@@ -99,10 +154,10 @@
     <ul class="pagination justify-content-center">
         {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page=1">Primera</a>
+                <a class="page-link" href="?page=1{% if querystring %}&{{ querystring }}{% endif %}">Primera</a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Anterior</a>
             </li>
         {% endif %}
         
@@ -114,10 +169,10 @@
         
         {% if page_obj.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Siguiente</a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if querystring %}&{{ querystring }}{% endif %}">Última</a>
             </li>
         {% endif %}
     </ul>

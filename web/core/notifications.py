@@ -9,9 +9,17 @@ def _full_name_or_username(user):
     return full_name or user.username
 
 
+def _can_receive_student_email(student):
+    return (
+        bool(student.email)
+        and student.is_student()
+        and student.is_email_verified()
+    )
+
+
 def notify_enrollment_created(enrollment):
     student = enrollment.student
-    if not student.email:
+    if not _can_receive_student_email(student):
         return False
 
     subject = f"Inscripción recibida: {enrollment.course.title}"
@@ -35,7 +43,7 @@ def notify_enrollment_created(enrollment):
 
 def notify_enrollment_status_changed(enrollment, previous_status=None):
     student = enrollment.student
-    if not student.email:
+    if not _can_receive_student_email(student):
         return False
 
     status_display = enrollment.get_status_display()
@@ -181,7 +189,7 @@ def notify_material_published(material):
     
     for enrollment in enrollments:
         student = enrollment.student
-        if not student.email:
+        if not _can_receive_student_email(student):
             continue
         
         context = {
@@ -258,7 +266,7 @@ def notify_assignment_published(assignment):
     
     for enrollment in enrollments:
         student = enrollment.student
-        if not student.email:
+        if not _can_receive_student_email(student):
             continue
         
         context = {

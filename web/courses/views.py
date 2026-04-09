@@ -8,6 +8,8 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 from django.utils import timezone
 from .models import Course, Enrollment
+from accounts.models import UserActivityLog
+from accounts.activity import log_user_activity
 from core.notifications import (
     notify_enrollment_created,
     notify_enrollment_status_changed,
@@ -285,6 +287,11 @@ def course_create(request):
             course.instructor_id = request.user.id
             course.save()
             form.save_m2m()  # Save many-to-many relationships (collaborators)
+            log_user_activity(
+                action=UserActivityLog.ACTION_COURSE_CREATED,
+                actor=request.user,
+                details=f'Curso "{course.title}" creado',
+            )
             messages.success(request, f'Curso "{course.title}" creado exitosamente.')
             return redirect('course_list_teacher')
     else:
@@ -312,6 +319,11 @@ def course_edit(request, course_id):
         form = CourseForm(request.POST, instance=course, user=request.user)
         if form.is_valid():
             course = form.save()  # Django guarda automáticamente las relaciones ManyToMany
+            log_user_activity(
+                action=UserActivityLog.ACTION_COURSE_UPDATED,
+                actor=request.user,
+                details=f'Curso "{course.title}" actualizado',
+            )
             messages.success(request, f'Curso "{course.title}" actualizado exitosamente.')
             return redirect('course_list_teacher')
     else:
@@ -357,6 +369,11 @@ def course_delete(request, course_id):
     
     if request.method == 'POST':
         course_title = course.title
+        log_user_activity(
+            action=UserActivityLog.ACTION_COURSE_DELETED,
+            actor=request.user,
+            details=f'Curso "{course_title}" eliminado',
+        )
         course.delete()
         messages.success(request, f'Curso "{course_title}" eliminado exitosamente.')
         return redirect('course_list_teacher')
@@ -518,6 +535,11 @@ def enrollment_approve(request, course_id, enrollment_id):
     
     enrollment.status = 'approved'
     enrollment.save()
+    log_user_activity(
+        action=UserActivityLog.ACTION_ENROLLMENT_APPROVED,
+        actor=request.user,
+        details=f'Inscripción aprobada de {enrollment.student.username} en "{course.title}"',
+    )
     notify_enrollment_status_changed(enrollment, previous_status='Pendiente')
     messages.success(request, f'Inscripción de {enrollment.student.get_full_name() or enrollment.student.username} aprobada exitosamente.')
     return redirect('course_detail', course_id=course_id)
@@ -543,6 +565,11 @@ def enrollment_reject(request, course_id, enrollment_id):
     
     enrollment.status = 'rejected'
     enrollment.save()
+    log_user_activity(
+        action=UserActivityLog.ACTION_ENROLLMENT_REJECTED,
+        actor=request.user,
+        details=f'Inscripción rechazada de {enrollment.student.username} en "{course.title}"',
+    )
     notify_enrollment_status_changed(enrollment, previous_status='Pendiente')
     messages.success(request, f'Inscripción de {enrollment.student.get_full_name() or enrollment.student.username} rechazada.')
     return redirect('course_detail', course_id=course_id)
@@ -567,6 +594,11 @@ def enrollment_cancel(request, course_id, enrollment_id):
         return redirect('course_detail', course_id=course_id)
     
     student_name = enrollment.student.get_full_name() or enrollment.student.username
+    log_user_activity(
+        action=UserActivityLog.ACTION_ENROLLMENT_CANCELLED,
+        actor=request.user,
+        details=f'Inscripción cancelada de {enrollment.student.username} en "{course.title}"',
+    )
     enrollment.delete()
     messages.success(request, f'Inscripción de {student_name} cancelada exitosamente.')
     return redirect('course_detail', course_id=course_id)

@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm, PasswordChangeForm
 from django.contrib.auth import authenticate
-from .models import CustomUser
+from django.utils import timezone
+from .models import CustomUser, StudentRegistrationToken
 import pyotp # Necesario para la verificación de OTP, aunque TOTPDevice lo maneja directamente
 
 class CustomUserCreationForm(UserCreationForm):
@@ -38,14 +39,11 @@ class CustomUserCreationForm(UserCreationForm):
 
 
 class StudentRegistrationForm(UserCreationForm):
-    email = forms.EmailField(required=True)
-
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'first_name', 'last_name')
+        fields = ('username', 'first_name', 'last_name')
         widgets = {
             'username': forms.TextInput(attrs={'class': 'form-control'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
         }
@@ -68,19 +66,44 @@ class StudentRegistrationForm(UserCreationForm):
         self.fields['password2'].error_messages['required'] = 'Debes repetir la contraseña.'
         self.error_messages['password_mismatch'] = 'Las contraseñas no coinciden. Verificalas e intentá de nuevo.'
 
-    def clean_email(self):
-        email = (self.cleaned_data.get('email') or '').strip().lower()
-        if CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError("Ya existe un usuario con este correo.")
-        return email
-
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.email = self.cleaned_data['email']
+        user.email = ''
         user.user_type = 'student'
         if commit:
             user.save()
         return user
+
+
+class StudentRegistrationTokenCreateForm(forms.ModelForm):
+    starts_at = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+    expires_at = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+
+    class Meta:
+        model = StudentRegistrationToken
+        fields = ('description', 'starts_at', 'expires_at', 'max_uses')
+        widgets = {
+            'description': forms.TextInput(attrs={'class': 'form-control'}),
+            'max_uses': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        starts_at = cleaned_data.get('starts_at')
+        expires_at = cleaned_data.get('expires_at')
+        if starts_at and timezone.is_naive(starts_at):
+            starts_at = timezone.make_aware(starts_at, timezone.get_current_timezone())
+            cleaned_data['starts_at'] = starts_at
+        if expires_at and timezone.is_naive(expires_at):
+            expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
+            cleaned_data['expires_at'] = expires_at
+        if starts_at and expires_at and expires_at <= starts_at:
+            raise forms.ValidationError('La fecha de expiración debe ser posterior al inicio.')
+        return cleaned_data
 
 class CustomUserChangeForm(UserChangeForm):
     class Meta:
