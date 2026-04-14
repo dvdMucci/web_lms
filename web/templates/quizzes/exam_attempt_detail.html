@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Entrega — {{ exam.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-1"><i class="fas fa-user-graduate"></i> {{ attempt.student.get_full_name|default:attempt.student.username }}</h1>
+        <p class="text-muted mb-0">{{ exam.title }} — {{ course.title }}</p>
+    </div>
+    <div>
+        <span class="badge bg-primary fs-6">Nota: {{ attempt.score|floatformat:2 }} / 10,00</span>
+        <span class="text-muted small ms-2">{{ attempt.submitted_at|date:"d/m/Y H:i" }}</span>
+    </div>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list-check"></i> Detalle de respuestas</h5>
+    </div>
+    <div class="card-body">
+        {% include 'quizzes/_exam_review_table.html' with is_teacher_view=True %}
+    </div>
+</div>
+
+<a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="btn btn-outline-secondary">
+    <i class="fas fa-arrow-left"></i> Volver a entregas
+</a>
+{% endblock %}

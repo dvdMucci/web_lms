@@ -27,17 +27,25 @@
                         {% endif %}
                     </div>
 
-                    <form method="post" enctype="multipart/form-data">
+                    <form method="post" enctype="multipart/form-data" id="submission-upload-form">
                         {% csrf_token %}
 
-                        <div class="mb-3">
-                            <label for="{{ form.file.id_for_label }}" class="form-label">{{ form.file.label }}</label>
-                            {{ form.file }}
+                        <div class="mb-4">
+                            <p class="fw-bold mb-2 text-center fs-5">Paso 1: elegí tu archivo</p>
+                            <p class="text-muted text-center small mb-3">En el celular, tocá el botón verde. No hace falta buscar el texto «Elegir archivo» del sistema.</p>
+                            <div class="submission-file-zone p-3 p-md-4 border border-3 border-success rounded-3 bg-light text-center">
+                                {{ form.file }}
+                                <label for="{{ form.file.id_for_label }}" class="btn btn-success btn-lg w-100 py-4 mb-2 d-flex flex-column flex-sm-row align-items-center justify-content-center gap-2 gap-sm-3 shadow-sm" style="cursor: pointer; min-height: 4.5rem;">
+                                    <i class="fas fa-file-upload fa-2x" aria-hidden="true"></i>
+                                    <span class="fw-semibold">Tocá aquí para elegir archivo</span>
+                                </label>
+                                <p class="mb-1 small text-muted" id="submission-file-name" aria-live="polite">Ningún archivo seleccionado todavía</p>
+                                {% if form.file.help_text %}
+                                    <p class="mb-0 small text-muted">{{ form.file.help_text }}</p>
+                                {% endif %}
+                            </div>
                             {% if form.file.errors %}
-                                <div class="text-danger">{{ form.file.errors }}</div>
-                            {% endif %}
-                            {% if form.file.help_text %}
-                                <small class="form-text text-muted">{{ form.file.help_text }}</small>
+                                <div class="text-danger mt-2">{{ form.file.errors }}</div>
                             {% endif %}
                         </div>
 
@@ -69,12 +77,12 @@
                             </div>
                         {% endif %}
 
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'assignments:assignment_detail' course.id unit.id tema.id assignment.id %}" class="btn btn-outline-secondary">
+                        <div class="d-flex flex-column flex-sm-row justify-content-between gap-2 gap-sm-0">
+                            <a href="{% url 'assignments:assignment_detail' course.id unit.id tema.id assignment.id %}" class="btn btn-outline-secondary order-2 order-sm-1">
                                 <i class="fas fa-times"></i> Cancelar
                             </a>
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-upload"></i> Subir Entrega
+                            <button type="submit" class="btn btn-success btn-lg order-1 order-sm-2 py-3">
+                                <i class="fas fa-upload"></i> Subir entrega
                             </button>
                         </div>
                     </form>
@@ -83,4 +91,25 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var inp = document.getElementById('{{ form.file.id_for_label }}');
+    var out = document.getElementById('submission-file-name');
+    if (!inp || !out) return;
+    inp.addEventListener('change', function () {
+        if (inp.files && inp.files[0]) {
+            out.textContent = 'Archivo seleccionado: ' + inp.files[0].name;
+            out.classList.remove('text-muted');
+            out.classList.add('text-success', 'fw-semibold');
+        } else {
+            out.textContent = 'Ningún archivo seleccionado todavía';
+            out.classList.add('text-muted');
+            out.classList.remove('text-success', 'fw-semibold');
+        }
+    });
+})();
+</script>
 {% endblock %}

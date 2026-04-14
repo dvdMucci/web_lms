@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Exámenes — {{ tema.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1><i class="fas fa-clipboard-list"></i> Exámenes</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'course_detail' course.id %}">{{ course.title }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'units:unit_detail' course.id unit.id %}">{{ unit.title }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'units:tema_detail' course.id unit.id tema.id %}">{{ tema.title }}</a></li>
+                <li class="breadcrumb-item active">Exámenes</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="{% url 'quizzes:exam_create' course.id unit.id tema.id %}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Nuevo examen
+    </a>
+</div>
+
+{% if exams %}
+<div class="list-group shadow">
+    {% for exam in exams %}
+    <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ exam.title }}</h5>
+            {% if exam.is_published %}
+            <span class="badge bg-success">Publicado</span>
+            {% else %}
+            <span class="badge bg-secondary">Borrador</span>
+            {% endif %}
+        </div>
+        <p class="mb-1 text-muted small">{{ exam.description|truncatewords:15 }}</p>
+        <small class="text-muted">
+            <i class="fas fa-clock"></i>
+            {{ exam.available_from|date:"d/m/Y H:i" }} — {{ exam.available_until|date:"d/m/Y H:i" }}
+        </small>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">No hay exámenes en este tema.</p>
+<a href="{% url 'quizzes:exam_create' course.id unit.id tema.id %}" class="btn btn-primary">Crear examen</a>
+{% endif %}
+
+<div class="mt-4">
+    <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Volver al tema
+    </a>
+</div>
+{% endblock %}

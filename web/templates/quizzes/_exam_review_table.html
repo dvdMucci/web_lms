@@ -1,0 +1,47 @@
+<div class="table-responsive">
+    <table class="table table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:3rem;">#</th>
+                <th>Pregunta</th>
+                <th>{% if is_teacher_view %}Respuesta del alumno{% else %}Tu respuesta{% endif %}</th>
+                <th>Correcta</th>
+                <th style="width:6rem;">Resultado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in review_rows %}
+            <tr class="{% if row.is_correct %}table-success{% else %}table-danger{% endif %}">
+                <td>{{ row.num }}</td>
+                <td>{{ row.question.text }}</td>
+                <td>
+                    {% if row.selected_dont_know %}
+                        <em>No lo sé</em>
+                    {% elif row.selected %}
+                        {{ row.selected.text }}
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.correct_option %}
+                        <strong>{{ row.correct_option.text }}</strong>
+                    {% else %}
+                        —
+                    {% endif %}
+                    {% if row.explanation %}
+                    <div class="small text-muted mt-1"><i class="fas fa-info-circle"></i> {{ row.explanation }}</div>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if row.is_correct %}
+                    <span class="badge bg-success">Bien</span>
+                    {% else %}
+                    <span class="badge bg-danger">Mal</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

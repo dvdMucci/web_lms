@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}">{{ exam.title }}</a></li>
+        <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+</nav>
+
+<div class="card shadow col-lg-9">
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label class="form-label" for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
+                {{ form.text }}
+                {% for err in form.text.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+            </div>
+
+            <p class="form-label mb-2">Opciones (marcá cuál es la correcta al lado de cada una)</p>
+
+            <div class="row g-2 align-items-start mb-3 border rounded p-3 bg-light">
+                <div class="col">
+                    <label class="form-label small text-muted mb-1" for="{{ form.option_a.id_for_label }}">Opción A</label>
+                    {{ form.option_a }}
+                    {% for err in form.option_a.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-auto pt-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="correct" id="correct_a" value="a"
+                            {% if form.correct.value == 'a' %}checked{% endif %} required>
+                        <label class="form-check-label small" for="correct_a">Correcta</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2 align-items-start mb-3 border rounded p-3 bg-light">
+                <div class="col">
+                    <label class="form-label small text-muted mb-1" for="{{ form.option_b.id_for_label }}">Opción B</label>
+                    {{ form.option_b }}
+                    {% for err in form.option_b.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-auto pt-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="correct" id="correct_b" value="b"
+                            {% if form.correct.value == 'b' %}checked{% endif %}>
+                        <label class="form-check-label small" for="correct_b">Correcta</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2 align-items-start mb-3 border rounded p-3 bg-light">
+                <div class="col">
+                    <label class="form-label small text-muted mb-1" for="{{ form.option_c.id_for_label }}">Opción C</label>
+                    {{ form.option_c }}
+                    {% for err in form.option_c.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-auto pt-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="correct" id="correct_c" value="c"
+                            {% if form.correct.value == 'c' %}checked{% endif %}>
+                        <label class="form-check-label small" for="correct_c">Correcta</label>
+                    </div>
+                </div>
+            </div>
+            {% for err in form.correct.errors %}<div class="text-danger small mb-2">{{ err }}</div>{% endfor %}
+
+            <div class="mb-3">
+                <label class="form-label" for="{{ form.correct_explanation.id_for_label }}">{{ form.correct_explanation.label }}</label>
+                {{ form.correct_explanation }}
+                {% for err in form.correct_explanation.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-primary">Guardar pregunta</button>
+            <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="btn btn-outline-secondary">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

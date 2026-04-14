@@ -7,12 +7,179 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponse, Http404
 from django.core.files.storage import default_storage
+from datetime import datetime, time
+import json
+
+from django.utils.safestring import mark_safe
 from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
 from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
 from units.models import Unit, Tema
 from accounts.models import UserActivityLog
 from accounts.activity import log_user_activity
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
+
+
+@login_required
+def teacher_submission_report(request):
+    """Reporte docente de entregas por alumno con filtros por curso, unidad, alumno y fechas."""
+    if not request.user.is_teacher():
+        messages.error(request, 'Esta vista es solo para docentes.')
+        return redirect('dashboard')
+
+    managed_courses = Course.objects.filter(
+        Q(instructor=request.user) | Q(collaborators=request.user)
+    ).distinct().order_by('title')
+
+    course_id_raw = request.GET.get('course', '').strip()
+    unit_id_raw = request.GET.get('unit', '').strip()
+    student_id_raw = request.GET.get('student', '').strip()
+    selected_course_id = None
+    selected_unit_id = None
+    selected_student_id = None
+
+    courses_for_report = managed_courses
+    if course_id_raw:
+        try:
+            cid = int(course_id_raw)
+        except ValueError:
+            cid = None
+        if cid is not None:
+            if managed_courses.filter(pk=cid).exists():
+                selected_course_id = cid
+                courses_for_report = managed_courses.filter(pk=cid)
+            else:
+                messages.warning(request, 'El curso seleccionado no está disponible o no lo gestionás.')
+
+    assignments_qs = Assignment.objects.filter(course__in=courses_for_report)
+
+    # Unidades por curso (JSON para rellenar el select sin recargar al elegir curso)
+    units_by_course = {}
+    for row in Unit.objects.filter(course__in=managed_courses).order_by(
+        'course_id', 'order', 'pk'
+    ).values('id', 'title', 'course_id'):
+        key = str(row['course_id'])
+        units_by_course.setdefault(key, []).append(
+            {'id': row['id'], 'title': row['title']}
+        )
+    units_by_course_json = mark_safe(json.dumps(units_by_course, ensure_ascii=False))
+
+    if unit_id_raw:
+        try:
+            uid = int(unit_id_raw)
+        except ValueError:
+            uid = None
+        if uid is not None:
+            unit_obj = Unit.objects.filter(pk=uid, course__in=managed_courses).select_related('course').first()
+            if not unit_obj:
+                messages.warning(request, 'La unidad seleccionada no existe o no pertenece a tus cursos.')
+            elif not selected_course_id:
+                messages.warning(request, 'Seleccioná un curso para poder filtrar por unidad.')
+            elif unit_obj.course_id != selected_course_id:
+                messages.warning(request, 'La unidad no pertenece al curso seleccionado.')
+            else:
+                selected_unit_id = uid
+                assignments_qs = assignments_qs.filter(tema__unit_id=uid)
+
+    start_date = request.GET.get('start_date', '').strip()
+    end_date = request.GET.get('end_date', '').strip()
+
+    if start_date:
+        try:
+            start_parsed = datetime.strptime(start_date, '%Y-%m-%d')
+            start_dt = timezone.make_aware(
+                datetime.combine(start_parsed.date(), time.min),
+                timezone.get_current_timezone(),
+            )
+            assignments_qs = assignments_qs.filter(due_date__gte=start_dt)
+        except ValueError:
+            messages.warning(request, 'La fecha desde no tiene un formato válido.')
+
+    if end_date:
+        try:
+            end_parsed = datetime.strptime(end_date, '%Y-%m-%d')
+            end_dt = timezone.make_aware(
+                datetime.combine(end_parsed.date(), time.max),
+                timezone.get_current_timezone(),
+            )
+            assignments_qs = assignments_qs.filter(due_date__lte=end_dt)
+        except ValueError:
+            messages.warning(request, 'La fecha hasta no tiene un formato válido.')
+
+    assignments_qs = assignments_qs.select_related('course', 'tema', 'tema__unit')
+    assignment_ids = list(assignments_qs.values_list('id', flat=True))
+
+    totals_by_course = {
+        row['course_id']: row['total']
+        for row in assignments_qs.values('course_id').annotate(total=Count('id'))
+    }
+
+    enrollments_base = Enrollment.objects.filter(
+        course__in=courses_for_report,
+        status='approved',
+    )
+
+    # Alumnos inscriptos en los cursos del filtro (para el desplegable "Alumno")
+    student_ids_in_scope = enrollments_base.values_list('student_id', flat=True).distinct()
+    students_for_select = User.objects.filter(
+        pk__in=student_ids_in_scope,
+        user_type='student',
+    ).order_by('last_name', 'first_name', 'username')
+
+    if student_id_raw:
+        try:
+            sid = int(student_id_raw)
+        except ValueError:
+            sid = None
+        if sid is not None:
+            if enrollments_base.filter(student_id=sid).exists():
+                selected_student_id = sid
+            else:
+                messages.warning(request, 'El alumno seleccionado no pertenece al curso o no está inscripto.')
+
+    enrollments = enrollments_base.select_related('student', 'course').order_by(
+        'course__title', 'student__last_name', 'student__first_name'
+    )
+    if selected_student_id is not None:
+        enrollments = enrollments.filter(student_id=selected_student_id)
+
+    submitted_by_pair = {
+        (row['assignment__course_id'], row['student_id']): row['submitted']
+        for row in AssignmentSubmission.objects.filter(
+            assignment_id__in=assignment_ids
+        ).values('assignment__course_id', 'student_id').annotate(
+            submitted=Count('assignment_id', distinct=True)
+        )
+    } if assignment_ids else {}
+
+    rows = []
+    for enrollment in enrollments:
+        total_assignments = totals_by_course.get(enrollment.course_id, 0)
+        submitted_count = submitted_by_pair.get((enrollment.course_id, enrollment.student_id), 0)
+        percentage = round((submitted_count / total_assignments) * 100, 2) if total_assignments else 0
+        rows.append({
+            'course': enrollment.course,
+            'student': enrollment.student,
+            'total_assignments': total_assignments,
+            'submitted_count': submitted_count,
+            'percentage': percentage,
+        })
+
+    context = {
+        'rows': rows,
+        'start_date': start_date,
+        'end_date': end_date,
+        'managed_courses': managed_courses,
+        'units_by_course_json': units_by_course_json,
+        'students_for_select': students_for_select,
+        'selected_course_id': selected_course_id,
+        'selected_unit_id': selected_unit_id,
+        'selected_student_id': selected_student_id,
+    }
+    return render(request, 'assignments/teacher_submission_report.html', context)
 
 
 @login_required

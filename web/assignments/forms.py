@@ -140,13 +140,21 @@ class SubmissionForm(forms.ModelForm):
         model = AssignmentSubmission
         fields = ['file']
         widgets = {
-            'file': forms.FileInput(attrs={'class': 'form-control'}),
+            'file': forms.FileInput(
+                attrs={
+                    'class': 'submission-file-input visually-hidden',
+                    'accept': (
+                        '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt,.ods,.odp,'
+                        '.png,.jpg,.jpeg'
+                    ),
+                }
+            ),
         }
         labels = {
             'file': 'Archivo de Entrega',
         }
         help_texts = {
-            'file': 'Sube tu archivo (PDF, Office, o Canva). Máximo 50MB',
+            'file': 'PDF, Office o Canva. Máximo 50 MB. En el celular, tocá el botón verde de abajo.',
         }
     
     def __init__(self, *args, **kwargs):

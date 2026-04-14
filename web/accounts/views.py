@@ -315,6 +315,43 @@ def dashboard(request):
             .order_by('due_date')[:10]
         )
         context['pending_assignments'] = pending_assignments
+
+        from quizzes.models import ThemeExam
+        from quizzes.utils import resolve_student_exam_access
+
+        enrolled_course_ids = Enrollment.objects.filter(
+            student=request.user,
+            status='approved',
+        ).values_list('course_id', flat=True)
+        active_exams_qs = (
+            ThemeExam.objects.filter(
+                is_published=True,
+                available_from__lte=timezone.now(),
+                available_until__gte=timezone.now(),
+                course_id__in=enrolled_course_ids,
+                tema__is_paused=False,
+                tema__unit__is_paused=False,
+                course__is_active=True,
+                course__is_paused=False,
+            )
+            .select_related('course', 'tema', 'tema__unit')
+            .order_by('available_until', 'title')[:12]
+        )
+        context['active_exams_student_rows'] = []
+        for ex in active_exams_qs:
+            ok, msg = resolve_student_exam_access(
+                request.user,
+                ex.course,
+                ex.tema,
+                ex,
+            )
+            context['active_exams_student_rows'].append(
+                {
+                    'exam': ex,
+                    'can_take': ok,
+                    'block_message': msg or '',
+                }
+            )
     elif request.user.is_teacher() or request.user.user_type == 'admin':
         from courses.models import Enrollment
 
@@ -333,7 +370,29 @@ def dashboard(request):
                 .order_by('-enrolled_at')[:10]
             )
         context['pending_enrollments'] = pending_enrollments
-    
+
+        from quizzes.models import ThemeExam
+
+        now = timezone.now()
+        base_exam_qs = ThemeExam.objects.filter(
+            is_published=True,
+            available_from__lte=now,
+            available_until__gte=now,
+        ).select_related('course', 'tema', 'tema__unit')
+        if request.user.user_type == 'admin':
+            context['active_exams_teacher'] = base_exam_qs.order_by(
+                'available_until', 'title'
+            )[:12]
+        else:
+            context['active_exams_teacher'] = (
+                base_exam_qs.filter(
+                    Q(course__instructor=request.user)
+                    | Q(course__collaborators=request.user)
+                )
+                .distinct()
+                .order_by('available_until', 'title')[:12]
+            )
+
     # Si el usuario es administrador, incluir información de almacenamiento
     if request.user.can_manage_users():
         try:

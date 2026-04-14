@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'units',
     'materials',
     'assignments',
+    'quizzes',
     'core',
     'django.contrib.admin',
     'django.contrib.auth',

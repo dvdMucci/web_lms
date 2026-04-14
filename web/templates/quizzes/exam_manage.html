@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1><i class="fas fa-clipboard-list"></i> {{ exam.title }}</h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'units:tema_detail' course.id unit.id tema.id %}">{{ tema.title }}</a></li>
+                <li class="breadcrumb-item active">Examen</li>
+            </ol>
+        </nav>
+        <p class="text-muted small mb-0">
+            Ventana para alumnos: {{ exam.available_from|date:"d/m/Y H:i" }} — {{ exam.available_until|date:"d/m/Y H:i" }}
+            {% if exam.is_published %}<span class="badge bg-success">Publicado</span>{% else %}<span class="badge bg-secondary">Borrador</span>{% endif %}
+            {% if exam.attendance_date %}
+            <span class="badge bg-info text-dark ms-1">Asistencia {{ exam.attendance_date|date:"d/m/Y" }}</span>
+            {% endif %}
+        </p>
+    </div>
+    <div class="btn-group flex-wrap">
+        <a href="{% url 'quizzes:exam_edit' course.id unit.id tema.id exam.id %}" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i> Editar datos</a>
+        <a href="{% url 'quizzes:exam_export' course.id unit.id tema.id exam.id %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-file-excel"></i> Exportar Excel</a>
+        <a href="{% url 'quizzes:exam_template' course.id unit.id tema.id exam.id %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download"></i> Plantilla</a>
+        {% if not locked %}
+        <a href="{% url 'quizzes:exam_import' course.id unit.id tema.id exam.id %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-upload"></i> Importar</a>
+        <a href="{% url 'quizzes:question_create' course.id unit.id tema.id exam.id %}" class="btn btn-success btn-sm"><i class="fas fa-plus"></i> Pregunta</a>
+        {% endif %}
+        <a href="{% url 'quizzes:exam_delete' course.id unit.id tema.id exam.id %}" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Eliminar</a>
+    </div>
+</div>
+
+{% if locked %}
+<div class="alert alert-info">
+    <i class="fas fa-lock"></i> Ya hay entregas de alumnos: no se pueden agregar, editar ni eliminar preguntas ni importar con reemplazo.
+</div>
+{% endif %}
+
+{% if exam.description %}
+<p>{{ exam.description }}</p>
+{% endif %}
+
+<div class="card shadow mb-4">
+    <div class="card-header"><h5 class="mb-0">Preguntas ({{ questions|length }})</h5></div>
+    <div class="card-body">
+        {% if questions %}
+        <ol class="mb-0">
+            {% for q in questions %}
+            <li class="mb-3">
+                <div>{{ q.text }}</div>
+                <ul class="small text-muted">
+                    {% for o in q.answer_options.all %}
+                    <li>{% if o.is_correct %}<strong class="text-success">✓</strong>{% endif %} {{ o.text|truncatewords:20 }}</li>
+                    {% endfor %}
+                </ul>
+                {% if q.correct_explanation %}
+                <p class="small text-info mb-0"><i class="fas fa-info-circle"></i> {{ q.correct_explanation|truncatewords:25 }}</p>
+                {% endif %}
+                {% if not locked %}
+                <a href="{% url 'quizzes:question_edit' course.id unit.id tema.id exam.id q.id %}" class="btn btn-sm btn-outline-warning">Editar</a>
+                <a href="{% url 'quizzes:question_delete' course.id unit.id tema.id exam.id q.id %}" class="btn btn-sm btn-outline-danger">Eliminar</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="text-muted mb-0">Agregá preguntas (una por una o por importación Excel) antes de publicar el examen.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header"><h5 class="mb-0">Sin entregar</h5></div>
+    <div class="card-body">
+        {% if pending_students %}
+        <p class="small text-muted mb-2">Alumnos con inscripción aprobada que aún no enviaron el examen.</p>
+        <ul class="mb-0">
+            {% for u in pending_students %}
+            <li>{{ u.get_full_name|default:u.username }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted mb-0 small">No hay pendientes (todos los inscriptos aprobados ya entregaron, o no hay alumnos en el curso).</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow">
+    <div class="card-header"><h5 class="mb-0">Entregas</h5></div>
+    <div class="card-body p-0">
+        {% if attempts %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Alumno</th><th>Nota</th><th>Fecha</th><th></th></tr></thead>
+                <tbody>
+                    {% for a in attempts %}
+                    <tr>
+                        <td>{{ a.student.get_full_name|default:a.student.username }}</td>
+                        <td>{{ a.score|floatformat:2 }} / 10,00</td>
+                        <td>{{ a.submitted_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <a href="{% url 'quizzes:exam_attempt_detail' course.id unit.id tema.id exam.id a.id %}" class="btn btn-sm btn-outline-primary">
+                                Ver detalle
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="p-3 text-muted mb-0">Aún no hay entregas.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{% url 'quizzes:exam_list' course.id unit.id tema.id %}" class="btn btn-outline-secondary">Lista de exámenes</a>
+    <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-outline-secondary">Volver al tema</a>
+</div>
+{% endblock %}

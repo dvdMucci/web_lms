@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Max
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 import os
 from .models import Unit, Tema
 from .forms import UnitForm, TemaForm, MaterialUploadForm, MaterialEditForm
@@ -274,6 +275,34 @@ def tema_detail(request, course_id, unit_id, tema_id):
             is_published=True
         ).order_by('due_date', 'created_at')
 
+    from quizzes.models import ThemeExam
+    from quizzes.utils import resolve_student_exam_access
+
+    if request.user.is_teacher() or request.user.user_type == 'admin':
+        theme_exams_qs = ThemeExam.objects.filter(tema=tema).order_by('available_from', 'pk')
+        theme_exam_rows = [
+            {'exam': e, 'can_take': True, 'block_message': ''}
+            for e in theme_exams_qs
+        ]
+    else:
+        now = timezone.now()
+        theme_exams_qs = ThemeExam.objects.filter(
+            tema=tema,
+            is_published=True,
+            available_from__lte=now,
+            available_until__gte=now,
+        ).order_by('available_from', 'pk')
+        theme_exam_rows = []
+        for e in theme_exams_qs:
+            ok, msg = resolve_student_exam_access(request.user, course, tema, e)
+            theme_exam_rows.append(
+                {
+                    'exam': e,
+                    'can_take': ok,
+                    'block_message': (msg or ''),
+                }
+            )
+
     can_manage = unit.can_be_managed_by(request.user)
 
     context = {
@@ -282,6 +311,7 @@ def tema_detail(request, course_id, unit_id, tema_id):
         'tema': tema,
         'materials': materials,
         'assignments': assignments,
+        'theme_exam_rows': theme_exam_rows,
         'can_manage': can_manage,
     }
     return render(request, 'units/tema_detail.html', context)

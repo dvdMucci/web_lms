@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Resultado — {{ exam.title }}{% endblock %}
+{% block content %}
+<div class="card shadow col-lg-10 mx-auto mb-4">
+    <div class="card-body text-center py-4">
+        <h1 class="h3 mb-3">{{ exam.title }}</h1>
+        <p class="display-5 text-primary mb-2">{{ attempt.score|floatformat:2 }}<span class="fs-5 text-muted"> / 10,00</span></p>
+        <p class="text-muted mb-0">
+            Respuestas correctas: {{ attempt.correct_count }} de {{ attempt.total_questions }}
+        </p>
+        <p class="small text-muted mt-2">Enviado el {{ attempt.submitted_at|date:"d/m/Y H:i" }}</p>
+    </div>
+</div>
+
+<div class="card shadow col-lg-10 mx-auto mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list-check"></i> Detalle por pregunta</h5>
+    </div>
+    <div class="card-body">
+        {% include 'quizzes/_exam_review_table.html' with is_teacher_view=False %}
+    </div>
+</div>
+
+<div class="text-center">
+    <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-primary">Volver al tema</a>
+</div>
+{% endblock %}

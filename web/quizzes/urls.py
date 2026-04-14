@@ -1,0 +1,78 @@
+from django.urls import path
+
+from . import views
+
+app_name = 'quizzes'
+
+urlpatterns = [
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/',
+        views.exam_list,
+        name='exam_list',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/create/',
+        views.exam_create,
+        name='exam_create',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/',
+        views.exam_manage,
+        name='exam_manage',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/edit/',
+        views.exam_edit,
+        name='exam_edit',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/delete/',
+        views.exam_delete,
+        name='exam_delete',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/questions/add/',
+        views.question_create,
+        name='question_create',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/questions/<int:question_id>/edit/',
+        views.question_edit,
+        name='question_edit',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/questions/<int:question_id>/delete/',
+        views.question_delete,
+        name='question_delete',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/import/',
+        views.exam_import,
+        name='exam_import',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/export/',
+        views.exam_export,
+        name='exam_export',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/template.xlsx',
+        views.exam_template_download,
+        name='exam_template',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/realizar/',
+        views.exam_take,
+        name='exam_take',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/resultado/',
+        views.exam_result,
+        name='exam_result',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/entregas/<int:attempt_id>/',
+        views.exam_attempt_detail,
+        name='exam_attempt_detail',
+    ),
+]

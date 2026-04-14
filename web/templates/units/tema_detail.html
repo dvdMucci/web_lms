@@ -156,6 +156,67 @@
 
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-clipboard-list"></i> Exámenes (opción múltiple)</h5>
+                {% if can_manage %}
+                <a href="{% url 'quizzes:exam_list' course.id unit.id tema.id %}" class="btn btn-sm btn-success">
+                    <i class="fas fa-cog"></i> Gestionar
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if theme_exam_rows %}
+                <div class="list-group">
+                    {% for row in theme_exam_rows %}
+                    {% with exam=row.exam %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <h6 class="mb-1">{{ exam.title }}</h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i>
+                                    {{ exam.available_from|date:"d/m/Y H:i" }} — {{ exam.available_until|date:"d/m/Y H:i" }}
+                                </small>
+                                {% if exam.attendance_date %}
+                                <div class="small text-muted mt-1">
+                                    <i class="fas fa-user-check"></i> Asistencia requerida: {{ exam.attendance_date|date:"d/m/Y" }}
+                                </div>
+                                {% endif %}
+                                {% if not can_manage and row.block_message %}
+                                <div class="small text-warning mt-1">{{ row.block_message }}</div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if can_manage %}
+                                <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="btn btn-sm btn-outline-primary">Administrar</a>
+                                {% else %}
+                                {% if row.can_take %}
+                                <a href="{% url 'quizzes:exam_take' course.id unit.id tema.id exam.id %}" class="btn btn-sm btn-primary">Realizar</a>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-secondary" disabled title="{{ row.block_message }}">Realizar</button>
+                                {% endif %}
+                                <a href="{% url 'quizzes:exam_result' course.id unit.id tema.id exam.id %}" class="btn btn-sm btn-outline-secondary">Resultado</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p class="text-muted mb-2">No hay exámenes disponibles en este tema.</p>
+                    {% if can_manage %}
+                    <a href="{% url 'quizzes:exam_create' course.id unit.id tema.id %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus"></i> Crear examen
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-tasks"></i> Tareas</h5>
                 {% if can_manage %}
                 <a href="{% url 'assignments:assignment_create' course.id unit.id tema.id %}" class="btn btn-sm btn-success">

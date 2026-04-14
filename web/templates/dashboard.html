@@ -207,6 +207,44 @@
             </div>
         </div>
     </div>
+    {% if active_exams_student_rows %}
+    <div class="col-12 mt-3">
+        <div class="card border-primary shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0"><i class="fas fa-clipboard-list"></i> Exámenes activos</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">Exámenes publicados dentro de la franja horaria actual.</p>
+                <ul class="list-group list-group-flush">
+                    {% for row in active_exams_student_rows %}
+                    {% with ex=row.exam %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>{{ ex.title }}</strong><br>
+                            <small class="text-muted">{{ ex.course.title }} — {{ ex.tema.unit.title }} / {{ ex.tema.title }}</small><br>
+                            <small class="text-muted">Hasta {{ ex.available_until|date:"d/m/Y H:i" }}</small>
+                            {% if row.block_message %}
+                            <div class="small text-warning mt-1">{{ row.block_message }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex flex-column gap-1 align-items-end">
+                            {% if row.can_take %}
+                            <a href="{% url 'quizzes:exam_take' ex.course.id ex.tema.unit.id ex.tema.id ex.id %}" class="btn btn-sm btn-primary">
+                                Realizar
+                            </a>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="{{ row.block_message }}">Realizar</button>
+                            {% endif %}
+                            <a href="{% url 'quizzes:exam_result' ex.course.id ex.tema.unit.id ex.tema.id ex.id %}" class="btn btn-sm btn-outline-secondary">Resultado</a>
+                        </div>
+                    </li>
+                    {% endwith %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% elif user.user_type == 'teacher' or user.user_type == 'admin' %}
     <div class="col-md-6">
         <div class="card">
@@ -214,15 +252,22 @@
                 <h5 class="card-title"><i class="fas fa-tools"></i> Gestión de Cursos</h5>
             </div>
             <div class="card-body">
-                <a href="{% url 'course_list_teacher' %}" class="btn btn-success">
-                    <i class="fas fa-book"></i> Mis Cursos
-                </a>
-                <a href="{% url 'course_create' %}" class="btn btn-primary ms-2">
-                    <i class="fas fa-plus"></i> Crear Curso
-                </a>
-                <a href="{% url 'registration_token_list' %}" class="btn btn-outline-success ms-2">
-                    <i class="fas fa-qrcode"></i> Tokens de Registro
-                </a>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'course_list_teacher' %}" class="btn btn-success w-100">
+                        <i class="fas fa-book"></i> Mis Cursos
+                    </a>
+                    <a href="{% url 'course_create' %}" class="btn btn-primary w-100">
+                        <i class="fas fa-plus"></i> Crear Curso
+                    </a>
+                    <a href="{% url 'registration_token_list' %}" class="btn btn-outline-success w-100">
+                        <i class="fas fa-qrcode"></i> Tokens de Registro
+                    </a>
+                    {% if user.user_type == 'teacher' %}
+                    <a href="{% url 'assignments:teacher_submission_report' %}" class="btn btn-outline-dark w-100">
+                        <i class="fas fa-chart-line"></i> Reporte de Entregas
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -252,6 +297,32 @@
             </div>
         </div>
     </div>
+    {% if active_exams_teacher %}
+    <div class="col-12 mt-3">
+        <div class="card border-success shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0"><i class="fas fa-clipboard-list"></i> Exámenes en curso</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">Publicados y dentro de la ventana de disponibilidad.</p>
+                <ul class="list-group list-group-flush">
+                    {% for ex in active_exams_teacher %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>{{ ex.title }}</strong><br>
+                            <small class="text-muted">{{ ex.course.title }} — {{ ex.tema.unit.title }} / {{ ex.tema.title }}</small><br>
+                            <small class="text-muted">{{ ex.available_from|date:"d/m H:i" }} — {{ ex.available_until|date:"d/m/Y H:i" }}</small>
+                        </div>
+                        <a href="{% url 'quizzes:exam_manage' ex.course.id ex.tema.unit.id ex.tema.id ex.id %}" class="btn btn-sm btn-outline-success">
+                            Administrar
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% elif user.user_type == 'supervisor' %}
     <div class="col-md-6">
         <div class="card">

@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Entregas{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-chart-line"></i> Reporte de Entregas por Alumno</h1>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Panel
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>Filtros</strong>
+            <div class="text-muted small">Elegí un curso y las unidades se cargan al instante; pulsá <strong>Aplicar</strong> para actualizar el reporte.</div>
+        </div>
+        <div class="card-body">
+            <form id="teacher-report-filters" method="get" class="row g-3 align-items-end" data-initial-unit="{% if selected_unit_id %}{{ selected_unit_id }}{% endif %}">
+                <div class="col-md-4">
+                    <label for="course" class="form-label">Curso</label>
+                    <select id="course" name="course" class="form-select">
+                        <option value="">Todos mis cursos</option>
+                        {% for c in managed_courses %}
+                        <option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="unit" class="form-label">Unidad</label>
+                    <select id="unit" name="unit" class="form-select">
+                        <option value="">—</option>
+                    </select>
+                    <small class="text-muted">Requiere un curso. Si cambiás de curso, elegí de nuevo la unidad.</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="student" class="form-label">Alumno</label>
+                    <select id="student" name="student" class="form-select">
+                        <option value="">Todos los alumnos</option>
+                        {% for s in students_for_select %}
+                        <option value="{{ s.id }}" {% if selected_student_id == s.id %}selected{% endif %}>
+                            {{ s.get_full_name|default:s.username }} ({{ s.username }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="start_date" class="form-label">Fecha límite desde</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ start_date }}" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label for="end_date" class="form-label">Fecha límite hasta</label>
+                    <input type="date" id="end_date" name="end_date" value="{{ end_date }}" class="form-control">
+                </div>
+                <div class="col-md-4 d-flex gap-2 flex-wrap">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> Aplicar
+                    </button>
+                    <a href="{% url 'assignments:teacher_submission_report' %}" class="btn btn-outline-secondary">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <strong>Resultados</strong>
+        </div>
+        <div class="card-body">
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Curso</th>
+                            <th>Alumno</th>
+                            <th class="text-center">Tareas del período</th>
+                            <th class="text-center">Entregadas</th>
+                            <th class="text-center">% Entrega</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.course.title }}</td>
+                            <td>{{ row.student.get_full_name|default:row.student.username }}</td>
+                            <td class="text-center">{{ row.total_assignments }}</td>
+                            <td class="text-center">{{ row.submitted_count }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if row.percentage >= 80 %}bg-success{% elif row.percentage >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                    {{ row.percentage }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No hay datos para mostrar con los filtros actuales.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="units-by-course-data">{{ units_by_course_json }}</script>
+<script>
+(function () {
+    function readUnitsByCourse() {
+        var el = document.getElementById('units-by-course-data');
+        if (!el) return {};
+        try {
+            return JSON.parse(el.textContent);
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function refillUnits(courseEl, unitEl, applyInitial) {
+        var unitsByCourse = readUnitsByCourse();
+        var cid = courseEl.value;
+        var form = document.getElementById('teacher-report-filters');
+        var initialUnit = applyInitial && form ? (form.getAttribute('data-initial-unit') || '') : '';
+
+        unitEl.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        if (!cid) {
+            opt0.textContent = 'Elegí un curso para ver unidades';
+            unitEl.appendChild(opt0);
+            unitEl.disabled = true;
+            return;
+        }
+        opt0.textContent = 'Todas las unidades del curso';
+        unitEl.appendChild(opt0);
+        unitEl.disabled = false;
+
+        var list = unitsByCourse[cid] || [];
+        for (var i = 0; i < list.length; i++) {
+            var o = document.createElement('option');
+            o.value = String(list[i].id);
+            o.textContent = list[i].title;
+            unitEl.appendChild(o);
+        }
+
+        if (initialUnit) {
+            unitEl.value = String(initialUnit);
+            if (unitEl.value !== String(initialUnit)) {
+                unitEl.value = '';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var courseEl = document.getElementById('course');
+        var unitEl = document.getElementById('unit');
+        if (!courseEl || !unitEl) return;
+
+        refillUnits(courseEl, unitEl, true);
+        courseEl.addEventListener('change', function () {
+            refillUnits(courseEl, unitEl, false);
+        });
+    });
+})();
+</script>
+{% endblock %}

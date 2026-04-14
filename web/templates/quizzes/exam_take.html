@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Realizar: {{ exam.title }}{% endblock %}
+{% block content %}
+<h1><i class="fas fa-pen"></i> {{ exam.title }}</h1>
+<p class="text-muted small">Una pregunta por pantalla. Podés avanzar o retroceder sin marcar opción. El botón para enviar aparece cuando contestaste todas.</p>
+
+{% if not display_questions %}
+<div class="alert alert-warning">Este examen no tiene preguntas configuradas todavía.</div>
+<a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-secondary">Volver</a>
+{% else %}
+<div class="mb-3">
+    <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+        <span>Pregunta {{ step|add:1 }} de {{ total_questions }}</span>
+        <span>{{ answered_count }} / {{ total_questions }} con respuesta</span>
+    </div>
+    <div class="progress" style="height: 8px;">
+        <div class="progress-bar" role="progressbar" style="width: {{ progress_percent }}%"></div>
+    </div>
+</div>
+
+<form method="post" id="exam-take-form">
+    {% csrf_token %}
+    <input type="hidden" name="current_step" value="{{ step }}">
+    <button type="submit" name="save_answer" value="1" id="exam-save-answer" class="visually-hidden" tabindex="-1" aria-hidden="true">save</button>
+
+    {% if current_dq %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <p class="fw-bold mb-3">{{ step|add:1 }}. {{ current_dq.question.text }}</p>
+            {% for item in current_dq.options_display %}
+            {% if item.kind == 'dont_know' %}
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="q_{{ current_dq.question.pk }}" id="opt_dk_{{ current_dq.question.pk }}"
+                    value="__dk__" {% if current_dq.selected_dk %}checked{% endif %}>
+                <label class="form-check-label" for="opt_dk_{{ current_dq.question.pk }}"><em>No lo sé</em></label>
+            </div>
+            {% else %}
+            {% with opt=item.option %}
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="q_{{ current_dq.question.pk }}" id="opt_{{ opt.pk }}"
+                    value="{{ opt.pk }}" {% if current_dq.selected_id == opt.pk %}checked{% endif %}>
+                <label class="form-check-label" for="opt_{{ opt.pk }}">{{ opt.text }}</label>
+            </div>
+            {% endwith %}
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% if has_prev %}
+        <button type="submit" name="nav" value="prev" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Anterior
+        </button>
+        {% endif %}
+        {% if has_next %}
+        <button type="submit" name="nav" value="next" class="btn btn-primary">
+            Siguiente <i class="fas fa-arrow-right"></i>
+        </button>
+        {% endif %}
+        <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+            {% if can_submit_exam %}
+            <button type="submit" name="submit_exam" value="1" class="btn btn-success" onclick="return confirm('¿Enviar el examen? No podrás modificarlo después.');">
+                <i class="fas fa-paper-plane"></i> Enviar examen
+            </button>
+            {% else %}
+            <span class="text-muted small">Completá todas las preguntas para enviar.</span>
+            {% endif %}
+            <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-outline-secondary">Salir</a>
+        </div>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.getElementById('exam-take-form');
+  var saveBtn = document.getElementById('exam-save-answer');
+  if (!form || !saveBtn) return;
+  form.querySelectorAll('input[type="radio"][name^="q_"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      saveBtn.click();
+    });
+  });
+})();
+</script>
+{% endblock %}

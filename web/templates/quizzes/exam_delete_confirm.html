@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Eliminar examen{% endblock %}
+{% block content %}
+<h1>Eliminar examen</h1>
+<p>¿Eliminar el examen «<strong>{{ exam.title }}</strong>» y todas sus preguntas e intentos?</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+    <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}
