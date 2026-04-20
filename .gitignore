@@ -197,6 +197,7 @@ cython_debug/
 mariadb_data/
 web/media/
 web/logs/
+web/staticfiles/
 
 # Env volcado por el contenedor para cron (contiene secretos)
 .dockerenv

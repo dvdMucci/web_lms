@@ -15,6 +15,16 @@ urlpatterns = [
     # Submissions
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/upload/', views.submission_upload, name='submission_upload'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/', views.submission_detail, name='submission_detail'),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/attachment/<int:attachment_id>/view/',
+        views.submission_attachment_view,
+        name='submission_attachment_view',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/attachment/<int:attachment_id>/download/',
+        views.submission_attachment_download,
+        name='submission_attachment_download',
+    ),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/view/', views.submission_view, name='submission_view'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/feedback/', views.submission_feedback, name='submission_feedback'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/download/', views.submission_download, name='submission_download'),

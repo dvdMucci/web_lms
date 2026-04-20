@@ -31,21 +31,22 @@
                         {% csrf_token %}
 
                         <div class="mb-4">
-                            <p class="fw-bold mb-2 text-center fs-5">Paso 1: elegí tu archivo</p>
-                            <p class="text-muted text-center small mb-3">En el celular, tocá el botón verde. No hace falta buscar el texto «Elegir archivo» del sistema.</p>
+                            <p class="fw-bold mb-2 text-center fs-5">Paso 1: elegí uno o más archivos</p>
+                            <p class="text-muted text-center small mb-3">Podés seleccionar varios a la vez (Ctrl o Shift según el sistema). En el celular, tocá el botón verde.</p>
                             <div class="submission-file-zone p-3 p-md-4 border border-3 border-success rounded-3 bg-light text-center">
-                                {{ form.file }}
-                                <label for="{{ form.file.id_for_label }}" class="btn btn-success btn-lg w-100 py-4 mb-2 d-flex flex-column flex-sm-row align-items-center justify-content-center gap-2 gap-sm-3 shadow-sm" style="cursor: pointer; min-height: 4.5rem;">
+                                <input type="file" name="files" id="id_submission_files" class="submission-file-input visually-hidden" multiple
+                                    accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg">
+                                <label for="id_submission_files" class="btn btn-success btn-lg w-100 py-4 mb-2 d-flex flex-column flex-sm-row align-items-center justify-content-center gap-2 gap-sm-3 shadow-sm" style="cursor: pointer; min-height: 4.5rem;">
                                     <i class="fas fa-file-upload fa-2x" aria-hidden="true"></i>
-                                    <span class="fw-semibold">Tocá aquí para elegir archivo</span>
+                                    <span class="fw-semibold">Tocá aquí para elegir archivos</span>
                                 </label>
                                 <p class="mb-1 small text-muted" id="submission-file-name" aria-live="polite">Ningún archivo seleccionado todavía</p>
-                                {% if form.file.help_text %}
-                                    <p class="mb-0 small text-muted">{{ form.file.help_text }}</p>
-                                {% endif %}
+                                <p class="mb-0 small text-muted">Podés elegir varios archivos a la vez. Máximo 50 MB por archivo.</p>
                             </div>
-                            {% if form.file.errors %}
-                                <div class="text-danger mt-2">{{ form.file.errors }}</div>
+                            {% if form.non_field_errors %}
+                                {% for err in form.non_field_errors %}
+                                <div class="text-danger mt-2">{{ err }}</div>
+                                {% endfor %}
                             {% endif %}
                         </div>
 
@@ -71,12 +72,6 @@
                             <p class="mb-0 mt-2"><strong>Nota:</strong> Cada nueva entrega creará una nueva versión. Los archivos anteriores no se eliminarán.</p>
                         </div>
 
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger">
-                                {{ form.non_field_errors }}
-                            </div>
-                        {% endif %}
-
                         <div class="d-flex flex-column flex-sm-row justify-content-between gap-2 gap-sm-0">
                             <a href="{% url 'assignments:assignment_detail' course.id unit.id tema.id assignment.id %}" class="btn btn-outline-secondary order-2 order-sm-1">
                                 <i class="fas fa-times"></i> Cancelar
@@ -96,12 +91,15 @@
 {% block extra_js %}
 <script>
 (function () {
-    var inp = document.getElementById('{{ form.file.id_for_label }}');
+    var inp = document.getElementById('id_submission_files');
     var out = document.getElementById('submission-file-name');
     if (!inp || !out) return;
     inp.addEventListener('change', function () {
-        if (inp.files && inp.files[0]) {
-            out.textContent = 'Archivo seleccionado: ' + inp.files[0].name;
+        if (inp.files && inp.files.length) {
+            var names = Array.prototype.map.call(inp.files, function (f) { return f.name; });
+            out.innerHTML = names.length === 1
+                ? 'Archivo seleccionado: <strong>' + names[0] + '</strong>'
+                : '<strong>' + names.length + ' archivos:</strong> ' + names.join(', ');
             out.classList.remove('text-muted');
             out.classList.add('text-success', 'fw-semibold');
         } else {

@@ -15,7 +15,13 @@
                         <h6>Información de la Entrega:</h6>
                         <p><strong>Estudiante:</strong> {{ submission.student.get_full_name|default:submission.student.username }}</p>
                         <p><strong>Versión:</strong> v{{ submission.version }}</p>
-                        <p><strong>Archivo:</strong> {{ submission.original_filename|default:"Archivo" }}</p>
+                        <p><strong>Archivos:</strong>
+                            {% if submission.attachment_files.all %}
+                                {% for a in submission.attachment_files.all %}{{ a.original_filename|default:"archivo" }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            {% else %}
+                                {{ submission.original_filename|default:"Archivo" }}
+                            {% endif %}
+                        </p>
                         <p><strong>Fecha de Entrega:</strong> {{ submission.submitted_at|date:"d/m/Y H:i" }}</p>
                     </div>
 

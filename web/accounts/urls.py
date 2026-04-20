@@ -2,6 +2,7 @@ from django.urls import path
 from . import views # Importa las vistas de tu aplicación
 
 urlpatterns = [
+    path('_theme/login-bg.jpg', views.login_background_image, name='login_background'),
     path('register/', views.register_view, name='register'),
     path('register/<str:token>/', views.register_with_token_view, name='register_with_token'),
     path('login/', views.login_view, name='login'),

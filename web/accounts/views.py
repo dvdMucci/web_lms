@@ -11,6 +11,8 @@ from django.core.paginator import Paginator
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 from django.urls import reverse
 from django.conf import settings
+from django.http import FileResponse, Http404
+from pathlib import Path
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from urllib.parse import urlencode
@@ -35,6 +37,21 @@ from .forms import (
 
 
 EMAIL_VERIFICATION_SIGNER = TimestampSigner(salt='email-verification')
+
+
+def login_background_image(request):
+    """
+    Fondo del login servido bajo /accounts/ (no /static/).
+    Nginx Proxy Manager u otros proxies suelen interceptar /static/ y devolver 404.
+    """
+    name = Path('img') / 'login-bg.jpg'
+    for base in (Path(settings.STATIC_ROOT), Path(settings.BASE_DIR) / 'static'):
+        path = base / name
+        if path.is_file():
+            resp = FileResponse(path.open('rb'), content_type='image/jpeg')
+            resp['Cache-Control'] = 'public, max-age=86400'
+            return resp
+    raise Http404
 
 
 def _build_email_verification_url(request, user):

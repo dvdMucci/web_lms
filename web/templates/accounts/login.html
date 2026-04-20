@@ -1,13 +1,96 @@
 {% extends 'base.html' %}
 
-{% block title %}Iniciar Sesión{% endblock %}
+{% block container_class %}mt-0{% endblock %}
+
+{% block title %}Acceso Usuarios{% endblock %}
+
+{% block extra_head %}
+<link rel="preload" href="{% url 'login_background' %}" as="image">
+<style>
+    /* Evita franja del color de fondo por defecto del body */
+    body {
+        margin: 0;
+        background-color: #334155;
+    }
+    .login-fullbleed {
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: -50vw;
+        margin-right: -50vw;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding: 2.5rem 1rem 3rem;
+        background-color: #334155;
+        background-image: linear-gradient(rgba(15, 23, 42, 0.35), rgba(15, 23, 42, 0.5)),
+            url("{% url 'login_background' %}");
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: scroll;
+    }
+    .login-fullbleed .card {
+        background-color: rgba(255, 255, 255, 0.97);
+        border: none;
+    }
+    .login-card-header {
+        background-color: hsl(144, 39%, 43%);
+        color: #133024;
+        border-bottom: 1px solid #cfe9d8;
+    }
+    .login-fullbleed .btn-login-submit {
+        background-color: #2e7453;
+        border-color: #40916c;
+        color: #fff;
+    }
+    .login-fullbleed .btn-login-submit:hover {
+        background-color: #40916c;
+        border-color: #2d6a4f;
+        color: #fff;
+    }
+    .login-fullbleed .btn-login-submit:focus {
+        box-shadow: 0 0 0 0.2rem rgba(82, 183, 136, 0.45);
+    }
+    .login-auth-row {
+        justify-content: center;
+    }
+    .login-card-wrap {
+        width: 100%;
+        max-width: 22rem;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    @media (orientation: landscape) {
+        .login-auth-row {
+            justify-content: flex-start;
+            padding-left: clamp(1rem, 8vw, 5rem);
+        }
+        .login-card-wrap {
+            margin-left: 0;
+            margin-right: auto;
+        }
+    }
+    @media (orientation: portrait) {
+        .login-auth-row {
+            justify-content: center;
+            padding-left: 0;
+        }
+        .login-card-wrap {
+            margin-left: auto;
+            margin-right: auto;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-4">
+<div class="login-fullbleed">
+<div class="row login-auth-row">
+    <div class="col-12 login-card-wrap">
         <div class="card shadow">
-            <div class="card-header bg-primary text-white text-center">
-                <h4><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</h4>
+            <div class="card-header login-card-header text-center">
+                <h4 class="mb-0">Acceso Usuarios</h4>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -44,7 +127,7 @@
                         </div>
                     {% endif %}
                     
-                    <button type="submit" class="btn btn-primary w-100">
+                    <button type="submit" class="btn btn-login-submit w-100">
                         <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
                     </button>
                 </form>
@@ -54,5 +137,6 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}

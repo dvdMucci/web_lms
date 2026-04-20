@@ -2,7 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 import os
 import uuid
@@ -10,10 +10,18 @@ from datetime import datetime
 
 
 def assignment_submission_upload_path(instance, filename):
-    """Generate serialized filename for assignment submissions"""
+    """Generate serialized filename for legacy AssignmentSubmission.file (deprecated)."""
     ext = os.path.splitext(filename)[1]
     unique_filename = f"{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
-    instance.original_filename = filename
+    if hasattr(instance, 'original_filename'):
+        instance.original_filename = filename
+    return f'assignments/submissions/{unique_filename}'
+
+
+def submission_attachment_upload_path(instance, filename):
+    """Ruta almacenamiento para cada archivo de una entrega."""
+    ext = os.path.splitext(filename)[1]
+    unique_filename = f"{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
     return f'assignments/submissions/{unique_filename}'
 
 
@@ -167,7 +175,10 @@ class AssignmentSubmission(models.Model):
     version = models.PositiveIntegerField(default=1, verbose_name='Versión')
     file = models.FileField(
         upload_to=assignment_submission_upload_path,
-        verbose_name='Archivo'
+        verbose_name='Archivo',
+        null=True,
+        blank=True,
+        help_text='Obsoleto: usar attachment_files. Se mantiene por compatibilidad.',
     )
     original_filename = models.CharField(
         max_length=255,
@@ -253,6 +264,49 @@ class AssignmentSubmission(models.Model):
             student=self.student
         ).aggregate(models.Max('version'))['version__max']
         return (max_version or 0) + 1
+
+    @property
+    def files_display_names(self):
+        """Nombres de archivos para listados (adjuntos o legado)."""
+        qs = list(self.attachment_files.all().order_by('order', 'id'))
+        if qs:
+            return [a.original_filename or os.path.basename(a.file.name) for a in qs]
+        if self.file:
+            return [self.original_filename or os.path.basename(self.file.name)]
+        return []
+
+
+class AssignmentSubmissionFile(models.Model):
+    """Un archivo incluido en una entrega (varios por versión)."""
+    submission = models.ForeignKey(
+        AssignmentSubmission,
+        on_delete=models.CASCADE,
+        related_name='attachment_files',
+        verbose_name='Entrega',
+    )
+    file = models.FileField(
+        upload_to=submission_attachment_upload_path,
+        verbose_name='Archivo',
+    )
+    original_filename = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Nombre original',
+    )
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Orden')
+
+    class Meta:
+        verbose_name = 'Archivo de entrega'
+        verbose_name_plural = 'Archivos de entrega'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.original_filename or (self.file.name if self.file else '')
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.original_filename:
+            self.original_filename = os.path.basename(self.file.name)
+        super().save(*args, **kwargs)
 
 
 class AssignmentCollaborator(models.Model):
@@ -372,21 +426,63 @@ class AssignmentComment(models.Model):
         super().save(*args, **kwargs)
 
 
-@receiver(post_save, sender=AssignmentSubmission)
-def check_storage_after_submission(sender, instance, created, **kwargs):
-    """Verificar umbral de almacenamiento después de subir un archivo"""
-    if created and instance.file:
+def _safe_delete_fieldfile(fieldfile):
+    if not fieldfile:
+        return
+    try:
+        fieldfile.delete(save=False)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug(
+            'No se pudo borrar fichero del storage (puede que ya no exista).',
+        )
+
+
+def _delete_submission_files_from_storage(submission):
+    """Quita del storage todos los archivos de una entrega (adjuntos + legado)."""
+    for af in submission.attachment_files.all():
+        _safe_delete_fieldfile(af.file)
+    _safe_delete_fieldfile(submission.file)
+
+
+@receiver(pre_delete, sender=Assignment)
+def purge_submission_files_when_assignment_deleted(sender, instance, **kwargs):
+    """
+    Al borrar una tarea, Django puede hacer DELETE masivo en SQL y no disparar
+    post_delete en cada adjunto; así los archivos quedarían huérfanos en el bucket.
+    Eliminamos explícitamente del storage antes del CASCADE.
+    """
+    for sub in AssignmentSubmission.objects.filter(assignment=instance).prefetch_related(
+        'attachment_files'
+    ):
+        _delete_submission_files_from_storage(sub)
+
+
+@receiver(pre_delete, sender=AssignmentSubmission)
+def purge_submission_files_when_submission_deleted(sender, instance, **kwargs):
+    """Si se borra una entrega suelta (admin, etc.), limpiar storage."""
+    _delete_submission_files_from_storage(instance)
+
+
+@receiver(post_save, sender=AssignmentSubmissionFile)
+def check_storage_after_submission_file(sender, instance, created, **kwargs):
+    """Verificar umbral de almacenamiento después de subir un archivo de entrega."""
+    if created:
         try:
             from core.services.storage import check_storage_threshold
-            # Invalidar caché para obtener datos frescos
             from django.core.cache import cache
             cache.delete('storage_usage_stats')
-            # Verificar el umbral de almacenamiento
             check_storage_threshold()
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"Error al verificar umbral de almacenamiento: {e}")
+
+
+@receiver(post_delete, sender=AssignmentSubmissionFile)
+def delete_submission_attachment_storage(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
 
 
 @receiver(post_delete, sender=AssignmentSubmission)

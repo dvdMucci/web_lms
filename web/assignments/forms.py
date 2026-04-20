@@ -123,8 +123,35 @@ class AssignmentForm(forms.ModelForm):
         return assignment
 
 
-class SubmissionForm(forms.ModelForm):
-    """Form for students to submit assignments"""
+# Office, PDF, Canva (imágenes / pdf) — máx. 50 MB por archivo
+SUBMISSION_ALLOWED_EXTENSIONS = frozenset({
+    'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
+    'pdf', 'png', 'jpg', 'jpeg',
+})
+SUBMISSION_MAX_FILE_BYTES = 50 * 1024 * 1024
+
+
+def _validate_submission_upload_file(upload):
+    """Valida extensión y tamaño de un UploadedFile."""
+    max_size = SUBMISSION_MAX_FILE_BYTES
+    if upload.size > max_size:
+        raise forms.ValidationError(
+            f'«{upload.name}»: cada archivo no puede superar 50 MB.'
+        )
+    ext = os.path.splitext(upload.name)[1].lstrip('.').lower()
+    if ext not in SUBMISSION_ALLOWED_EXTENSIONS:
+        raise forms.ValidationError(
+            f'«{upload.name}»: tipo no permitido. Use Office (.doc, .docx, .ppt, .pptx, .xls, .xlsx), '
+            '.pdf o imágenes/PDF de Canva (.pdf, .png, .jpg, .jpeg).'
+        )
+    dangerous = {'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', 'zip', 'rar', '7z'}
+    if ext in dangerous:
+        raise forms.ValidationError(f'«{upload.name}»: tipo de archivo no permitido por seguridad.')
+    return upload
+
+
+class SubmissionForm(forms.Form):
+    """Varios archivos por entrega."""
     initial_comment = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'form-control',
@@ -135,84 +162,41 @@ class SubmissionForm(forms.ModelForm):
         required=False,
         help_text='Puede agregar un comentario o nota sobre su entrega (opcional)'
     )
-    
-    class Meta:
-        model = AssignmentSubmission
-        fields = ['file']
-        widgets = {
-            'file': forms.FileInput(
-                attrs={
-                    'class': 'submission-file-input visually-hidden',
-                    'accept': (
-                        '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt,.ods,.odp,'
-                        '.png,.jpg,.jpeg'
-                    ),
-                }
-            ),
-        }
-        labels = {
-            'file': 'Archivo de Entrega',
-        }
-        help_texts = {
-            'file': 'PDF, Office o Canva. Máximo 50 MB. En el celular, tocá el botón verde de abajo.',
-        }
-    
+
     def __init__(self, *args, **kwargs):
         self.assignment = kwargs.pop('assignment', None)
         self.student = kwargs.pop('student', None)
         super().__init__(*args, **kwargs)
-    
-    def clean_file(self):
-        file = self.cleaned_data.get('file')
-        if not file:
-            raise forms.ValidationError('Debe seleccionar un archivo para entregar.')
-        
-        # Size validation (50MB max)
-        max_size = 50 * 1024 * 1024  # 50MB
-        if file.size > max_size:
-            raise forms.ValidationError(f'El archivo no puede ser mayor a 50MB.')
-        
-        # Extension validation - Office, PDF, Canva
-        allowed_extensions = [
-            # Office documents
-            'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'ods', 'odp',
-            # PDF
-            'pdf',
-            # Canva exports (common formats)
-            'png', 'jpg', 'jpeg', 'pdf',  # Canva can export as PDF or images
-        ]
-        
-        file_extension = os.path.splitext(file.name)[1].lstrip('.').lower()
-        if file_extension not in allowed_extensions:
-            raise forms.ValidationError(
-                f'Tipo de archivo no permitido. Solo se permiten: documentos de Office (doc, docx, ppt, pptx, xls, xlsx), PDF, o archivos de Canva (PDF, PNG, JPG).'
-            )
-        
-        # Security: block dangerous extensions
-        dangerous_extensions = ['exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', 'zip', 'rar', '7z']
-        if file_extension in dangerous_extensions:
-            raise forms.ValidationError('Tipo de archivo no permitido por razones de seguridad.')
-        
-        return file
-    
+
     def clean(self):
         cleaned_data = super().clean()
-        
+        uploads = self.files.getlist('files')
+        if not uploads:
+            raise forms.ValidationError('Seleccioná al menos un archivo para entregar.')
+        validated = []
+        errors = []
+        for upload in uploads:
+            try:
+                validated.append(_validate_submission_upload_file(upload))
+            except forms.ValidationError as e:
+                errors.extend(e.messages)
+        if errors:
+            raise forms.ValidationError(errors)
+        cleaned_data['file_list'] = validated
+
         if self.assignment and self.student:
-            # Check if assignment allows submissions
             if not self.assignment.is_submission_allowed():
                 raise forms.ValidationError('Ya no se pueden subir archivos para esta tarea.')
-            
-            # Check if student is enrolled
             enrollment = Enrollment.objects.filter(
                 student=self.student,
                 course=self.assignment.course,
                 status='approved'
             ).first()
-            
             if not enrollment:
-                raise forms.ValidationError('Debes estar inscrito y aprobado en el curso para entregar tareas.')
-        
+                raise forms.ValidationError(
+                    'Debes estar inscrito y aprobado en el curso para entregar tareas.'
+                )
+
         return cleaned_data
 
 

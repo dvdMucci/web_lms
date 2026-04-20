@@ -93,7 +93,15 @@
                                         <span class="badge bg-primary">v{{ submission.version }}</span>
                                     </td>
                                     <td>
-                                        <i class="fas fa-file"></i> {{ submission.original_filename|default:"Archivo" }}
+                                        {% if submission.attachment_files.all %}
+                                            <ul class="list-unstyled mb-0 small">
+                                            {% for a in submission.attachment_files.all %}
+                                                <li><i class="fas fa-file"></i> {{ a.original_filename|default:"archivo" }}</li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% else %}
+                                            <i class="fas fa-file"></i> {{ submission.original_filename|default:"Archivo" }}
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {{ submission.submitted_at|date:"d/m/Y H:i" }}
@@ -157,7 +165,7 @@
                         <li><i class="fas fa-check text-success"></i> PDF</li>
                         <li><i class="fas fa-check text-success"></i> Archivos de Canva (PDF, PNG, JPG)</li>
                     </ul>
-                    <p class="text-muted"><small>Máximo 50MB por archivo</small></p>
+                    <p class="text-muted"><small>Podés subir varios archivos en una sola entrega. Máximo 50 MB por archivo.</small></p>
                     <a href="{% url 'assignments:submission_upload' course.id unit.id tema.id assignment.id %}" class="btn btn-success w-100">
                         <i class="fas fa-upload"></i> Subir Entrega
                     </a>

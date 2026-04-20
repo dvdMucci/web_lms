@@ -2,16 +2,24 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
+from django.db import transaction
 from django.db.models import Q, Count, Exists, OuterRef
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponse, Http404
-from django.core.files.storage import default_storage
 from datetime import datetime, time
 import json
+import mimetypes
+import os
 
 from django.utils.safestring import mark_safe
-from .models import Assignment, AssignmentSubmission, AssignmentCollaborator, AssignmentComment
+from .models import (
+    Assignment,
+    AssignmentSubmission,
+    AssignmentSubmissionFile,
+    AssignmentCollaborator,
+    AssignmentComment,
+)
 from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
 from units.models import Unit, Tema
@@ -21,6 +29,57 @@ from django.contrib.auth import get_user_model
 
 
 User = get_user_model()
+
+
+def _resolve_submission_file_field(submission, attachment_id=None):
+    """
+    Devuelve (django FileField file, nombre para descarga) o (None, None).
+    """
+    if attachment_id is not None:
+        att = get_object_or_404(
+            AssignmentSubmissionFile,
+            pk=attachment_id,
+            submission_id=submission.pk,
+        )
+        ff = att.file
+        name = att.original_filename or os.path.basename(ff.name)
+        return ff, name
+    att = submission.attachment_files.order_by('order', 'id').first()
+    if att:
+        ff = att.file
+        name = att.original_filename or os.path.basename(ff.name)
+        return ff, name
+    if submission.file:
+        ff = submission.file
+        name = submission.original_filename or os.path.basename(ff.name)
+        return ff, name
+    return None, None
+
+
+def _http_response_from_uploaded_file(field_file, filename, *, inline):
+    """Lee desde almacenamiento (local o remoto) y arma HttpResponse."""
+    with field_file.open('rb') as f:
+        data = f.read()
+    content_type, _ = mimetypes.guess_type(filename)
+    if not content_type:
+        ext = os.path.splitext(filename)[1].lower()
+        content_type_map = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+        }
+        content_type = content_type_map.get(ext, 'application/octet-stream')
+    response = HttpResponse(data, content_type=content_type)
+    disp = 'inline' if inline else 'attachment'
+    response['Content-Disposition'] = f'{disp}; filename="{filename}"'
+    return response
 
 
 @login_required
@@ -465,7 +524,7 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
             latest_submission = AssignmentSubmission.objects.filter(
                 assignment=assignment,
                 student=student
-            ).order_by('-version').first()
+            ).prefetch_related('attachment_files').order_by('-version').first()
             
             has_submitted = latest_submission is not None
             if has_submitted:
@@ -493,7 +552,7 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         submissions = AssignmentSubmission.objects.filter(
             assignment=assignment,
             student=request.user
-        ).order_by('-version')
+        ).prefetch_related('attachment_files').order_by('-version')
         
         # Check if can submit
         can_submit = assignment.is_submission_allowed()
@@ -548,37 +607,46 @@ def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
     if request.method == 'POST':
         form = SubmissionForm(request.POST, request.FILES, assignment=assignment, student=request.user)
         if form.is_valid():
-            submission = form.save(commit=False)
-            submission.assignment = assignment
-            submission.student = request.user
-            
-            # Get next version number
-            submission.version = submission.get_next_version()
-            
-            # Set status - check if assignment is past due date (submission will be late)
+            file_list = form.cleaned_data['file_list']
+            proto = AssignmentSubmission(assignment=assignment, student=request.user)
+            version = proto.get_next_version()
+            first_name = os.path.basename(file_list[0].name)
+            submission = AssignmentSubmission(
+                assignment=assignment,
+                student=request.user,
+                version=version,
+                status='submitted',
+                original_filename=first_name,
+            )
             if assignment.is_late_submission():
-                submission.status = 'submitted'  # Still submitted, but will show as late
-            else:
                 submission.status = 'submitted'
-            
             try:
-                submission.save()
-                
-                # Save initial comment if provided
-                initial_comment = form.cleaned_data.get('initial_comment')
-                if initial_comment:
-                    from .models import AssignmentComment
-                    AssignmentComment.objects.create(
-                        submission=submission,
-                        user=request.user,
-                        comment=initial_comment
-                    )
-                
-                messages.success(request, f'Entrega subida exitosamente (Versión {submission.version}).')
+                with transaction.atomic():
+                    submission.save()
+                    for i, uploaded in enumerate(file_list):
+                        AssignmentSubmissionFile.objects.create(
+                            submission=submission,
+                            file=uploaded,
+                            original_filename=os.path.basename(uploaded.name),
+                            order=i,
+                        )
+                    initial_comment = form.cleaned_data.get('initial_comment')
+                    if initial_comment:
+                        AssignmentComment.objects.create(
+                            submission=submission,
+                            user=request.user,
+                            comment=initial_comment,
+                        )
+                n = len(file_list)
+                msg_extra = f' ({n} archivos)' if n > 1 else ''
+                messages.success(
+                    request,
+                    f'Entrega subida exitosamente (Versión {submission.version}){msg_extra}.',
+                )
                 log_user_activity(
                     action=UserActivityLog.ACTION_SUBMISSION_UPLOADED,
                     actor=request.user,
-                    details=f'Entrega subida en tarea "{assignment.title}" (v{submission.version})',
+                    details=f'Entrega subida en tarea "{assignment.title}" (v{submission.version}, {n} archivo(s))',
                 )
                 return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
             except ValidationError as e:
@@ -608,8 +676,12 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
-    submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
-    
+    submission = get_object_or_404(
+        AssignmentSubmission.objects.prefetch_related('attachment_files'),
+        id=submission_id,
+        assignment=assignment,
+    )
+
     # Check permissions: student can only see their own, teacher can see all
     if request.user.is_student():
         if submission.student != request.user:
@@ -623,7 +695,7 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
     all_versions = AssignmentSubmission.objects.filter(
         assignment=assignment,
         student=submission.student
-    ).order_by('-version')
+    ).prefetch_related('attachment_files').order_by('-version')
     
     # Get collaborators if group work
     collaborators = None
@@ -692,8 +764,12 @@ def submission_feedback(request, course_id, unit_id, tema_id, assignment_id, sub
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
-    submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
-    
+    submission = get_object_or_404(
+        AssignmentSubmission.objects.prefetch_related('attachment_files'),
+        id=submission_id,
+        assignment=assignment,
+    )
+
     # Check permissions
     if not assignment.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para dar feedback en esta entrega.')
@@ -780,111 +856,93 @@ def collaborator_add(request, course_id, unit_id, tema_id, assignment_id, submis
     return render(request, 'assignments/collaborator_add.html', context)
 
 
-@login_required
-def submission_view(request, course_id, unit_id, tema_id, assignment_id, submission_id):
-    """View/preview a submission file in the browser"""
-    import mimetypes
-    import os
-    
+def _submission_serve_file(request, course_id, unit_id, tema_id, assignment_id, submission_id, attachment_id, *, inline):
     course = get_object_or_404(Course, id=course_id)
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
     submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
-    
-    # Check permissions: student can only view their own, teacher can view all
+
     if request.user.is_student():
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
-            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
+            return redirect(
+                'assignments:assignment_detail',
+                course_id=course_id,
+                unit_id=unit_id,
+                tema_id=tema_id,
+                assignment_id=assignment_id,
+            )
     elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    
-    if submission.file:
-        try:
-            file_path = submission.file.path
-            filename = submission.original_filename if submission.original_filename else submission.file.name.split("/")[-1]
-            
-            # Determine content type
-            content_type, _ = mimetypes.guess_type(filename)
-            if not content_type:
-                # Default content types for common file extensions
-                ext = os.path.splitext(filename)[1].lower()
-                content_type_map = {
-                    '.pdf': 'application/pdf',
-                    '.doc': 'application/msword',
-                    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    '.ppt': 'application/vnd.ms-powerpoint',
-                    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                    '.xls': 'application/vnd.ms-excel',
-                    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    '.png': 'image/png',
-                    '.jpg': 'image/jpeg',
-                    '.jpeg': 'image/jpeg',
-                    '.gif': 'image/gif',
-                }
-                content_type = content_type_map.get(ext, 'application/octet-stream')
-            
-            with default_storage.open(file_path, 'rb') as f:
-                response = HttpResponse(
-                    f.read(),
-                    content_type=content_type
-                )
-                # Use 'inline' to display in browser, 'attachment' to force download
-                # For PDFs and images, use 'inline', for Office docs use 'attachment'
-                if content_type in ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif']:
-                    response['Content-Disposition'] = f'inline; filename="{filename}"'
-                else:
-                    # For Office documents, still show inline but browser may download
-                    response['Content-Disposition'] = f'inline; filename="{filename}"'
-                log_user_activity(
-                    action=UserActivityLog.ACTION_SUBMISSION_VIEWED,
-                    actor=request.user,
-                    details=f'Entrega visualizada de tarea "{assignment.title}"',
-                )
-                return response
-        except FileNotFoundError:
-            raise Http404("Archivo no encontrado.")
-    
-    raise Http404("Archivo no encontrado.")
+        return redirect(
+            'assignments:assignment_detail',
+            course_id=course_id,
+            unit_id=unit_id,
+            tema_id=tema_id,
+            assignment_id=assignment_id,
+        )
+
+    ff, filename = _resolve_submission_file_field(submission, attachment_id)
+    if not ff:
+        raise Http404('Archivo no encontrado.')
+    try:
+        response = _http_response_from_uploaded_file(ff, filename, inline=inline)
+        if inline:
+            log_user_activity(
+                action=UserActivityLog.ACTION_SUBMISSION_VIEWED,
+                actor=request.user,
+                details=f'Entrega visualizada de tarea "{assignment.title}"',
+            )
+        else:
+            log_user_activity(
+                action=UserActivityLog.ACTION_SUBMISSION_DOWNLOADED,
+                actor=request.user,
+                details=f'Entrega descargada de tarea "{assignment.title}"',
+            )
+        return response
+    except FileNotFoundError:
+        raise Http404('Archivo no encontrado.') from None
+
+
+@login_required
+def submission_view(request, course_id, unit_id, tema_id, assignment_id, submission_id):
+    """Ver en el navegador el primer archivo o el indicado por URL de adjunto."""
+    return _submission_serve_file(
+        request, course_id, unit_id, tema_id, assignment_id, submission_id, None, inline=True
+    )
+
+
+@login_required
+def submission_attachment_view(request, course_id, unit_id, tema_id, assignment_id, submission_id, attachment_id):
+    return _submission_serve_file(
+        request,
+        course_id,
+        unit_id,
+        tema_id,
+        assignment_id,
+        submission_id,
+        attachment_id,
+        inline=True,
+    )
 
 
 @login_required
 def submission_download(request, course_id, unit_id, tema_id, assignment_id, submission_id):
-    """Download a submission file"""
-    course = get_object_or_404(Course, id=course_id)
-    unit = get_object_or_404(Unit, id=unit_id, course=course)
-    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
-    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
-    submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
-    
-    # Check permissions: student can only download their own, teacher can download all
-    if request.user.is_student():
-        if submission.student != request.user:
-            messages.error(request, 'No tienes permiso para descargar esta entrega.')
-            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
-        messages.error(request, 'No tienes permiso para descargar esta entrega.')
-        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    
-    if submission.file:
-        try:
-            file_path = submission.file.path
-            with default_storage.open(file_path, 'rb') as f:
-                response = HttpResponse(
-                    f.read(),
-                    content_type='application/octet-stream'
-                )
-                filename = submission.original_filename if submission.original_filename else submission.file.name.split("/")[-1]
-                response['Content-Disposition'] = f'attachment; filename="{filename}"'
-                log_user_activity(
-                    action=UserActivityLog.ACTION_SUBMISSION_DOWNLOADED,
-                    actor=request.user,
-                    details=f'Entrega descargada de tarea "{assignment.title}"',
-                )
-                return response
-        except FileNotFoundError:
-            raise Http404("Archivo no encontrado.")
-    
-    raise Http404("Archivo no encontrado.")
+    return _submission_serve_file(
+        request, course_id, unit_id, tema_id, assignment_id, submission_id, None, inline=False
+    )
+
+
+@login_required
+def submission_attachment_download(request, course_id, unit_id, tema_id, assignment_id, submission_id, attachment_id):
+    return _submission_serve_file(
+        request,
+        course_id,
+        unit_id,
+        tema_id,
+        assignment_id,
+        submission_id,
+        attachment_id,
+        inline=False,
+    )
