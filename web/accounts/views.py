@@ -415,16 +415,55 @@ def dashboard(request):
         try:
             from core.services.storage import get_storage_usage
             from core.models import StorageConfig
-            
+
             usage = get_storage_usage()
             config = StorageConfig.objects.first()
-            
+
             context['storage_usage'] = usage
             context['storage_config'] = config
         except Exception:
-            # Si hay algún error, simplemente no mostramos la información
             pass
-    
+
+    # Mensajes no leídos del foro
+    try:
+        from django.db.models import Subquery, F
+        from forums.models import ForumPost, ForumPostRead
+        from courses.models import Enrollment
+
+        user = request.user
+        last_read_sq = ForumPostRead.objects.filter(
+            user=user, post=OuterRef('pk')
+        ).values('last_read_at')[:1]
+
+        if user.is_student():
+            enrolled_course_ids = Enrollment.objects.filter(
+                student=user, status='approved'
+            ).values_list('course_id', flat=True)
+            accessible = ForumPost.objects.filter(
+                Q(is_private=False, course_id__in=enrolled_course_ids) |
+                Q(is_private=True, student_participant=user)
+            )
+        else:
+            accessible = ForumPost.objects.filter(
+                Q(course__instructor=user) | Q(course__collaborators=user)
+            ).distinct()
+
+        unread_posts = (
+            accessible
+            .exclude(author=user)
+            .annotate(last_read=Subquery(last_read_sq))
+            .filter(
+                Q(last_read__isnull=True) |
+                Q(last_activity_at__gt=F('last_read'))
+            )
+            .select_related('course', 'author', 'student_participant')
+            .order_by('-last_activity_at')[:10]
+        )
+        context['unread_forum_posts'] = unread_posts
+        context['unread_forum_count'] = unread_posts.count()
+    except Exception:
+        pass
+
     return render(request, 'dashboard.html', context)
 
 @login_required
@@ -465,8 +504,9 @@ def profile_view(request):
         from materials.models import Material
         from assignments.models import Assignment
         context['teacher_materials'] = Material.objects.filter(
-            uploaded_by=request.user
-        ).select_related('course', 'unit').order_by('-uploaded_at')[:10]
+            uploaded_by=request.user,
+            assignment__isnull=True,
+        ).select_related('course', 'tema__unit').order_by('-uploaded_at')[:10]
         context['teacher_assignments'] = Assignment.objects.filter(
             created_by=request.user
         ).select_related('course', 'unit').order_by('-created_at')[:10]

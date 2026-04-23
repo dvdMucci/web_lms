@@ -139,14 +139,28 @@
                             </div>
                         {% endif %}
 
+                        {% if not form.instance.pk %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Podés crear la tarea sin material guía, o crearla y luego subir un archivo/enlace para estudio.
+                        </div>
+                        {% endif %}
+
                         <div class="d-flex justify-content-between">
                             <a href="{% url 'assignments:assignment_list' course.id unit.id tema.id %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left"></i> Cancelar
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                {% if form.instance.pk %}Guardar Cambios{% else %}Crear Tarea{% endif %}
-                            </button>
+                            <div class="d-flex gap-2">
+                                {% if not form.instance.pk %}
+                                <button type="submit" name="create_and_add_material" value="1" class="btn btn-success">
+                                    <i class="fas fa-upload"></i> Crear y subir material guía
+                                </button>
+                                {% endif %}
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    {% if form.instance.pk %}Guardar Cambios{% else %}Crear Tarea{% endif %}
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>

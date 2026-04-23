@@ -7,13 +7,20 @@
     <div class="col-md-10">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-upload"></i> Subir Material</h5>
-                <small class="text-muted">Unidad: {{ unit.title }} - Tema: {{ tema.title }} - Curso: {{ course.title }}</small>
+                <h5><i class="fas fa-upload"></i> {% if assignment %}Subir material guía{% else %}Subir Material{% endif %}</h5>
+                <small class="text-muted">
+                    {% if assignment %}
+                    Tarea: {{ assignment.title }} — Unidad: {{ unit.title }} — Tema: {{ tema.title }} — Curso: {{ course.title }}
+                    {% else %}
+                    Unidad: {{ unit.title }} - Tema: {{ tema.title }} - Curso: {{ course.title }}
+                    {% endif %}
+                </small>
             </div>
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     
+                    {% if not assignment %}
                     <div class="mb-3">
                         <label for="{{ form.title.id_for_label }}" class="form-label">
                             {{ form.title.label }}
@@ -36,6 +43,7 @@
                             <div class="text-danger small">{{ form.description.errors }}</div>
                         {% endif %}
                     </div>
+                    {% endif %}
                     
                     <div class="mb-3">
                         <label class="form-label">{{ form.material_type.label }}</label>
@@ -148,11 +156,17 @@
                     </div>
                     
                     <div class="d-flex justify-content-between">
+                        {% if material_cancel_url %}
+                        <a href="{{ material_cancel_url }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver
+                        </a>
+                        {% else %}
                         <a href="{% url 'units:tema_detail' course.id unit.id tema.id %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Volver
                         </a>
+                        {% endif %}
                         <button type="submit" class="btn btn-success">
-                            <i class="fas fa-upload"></i> Subir Material
+                            <i class="fas fa-upload"></i> {% if assignment %}Subir material guía{% else %}Subir Material{% endif %}
                         </button>
                     </div>
                 </form>

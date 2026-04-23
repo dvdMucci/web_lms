@@ -37,8 +37,17 @@ class EnrollmentOpenForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        datetime_local_format = '%Y-%m-%dT%H:%M'
+        self.fields['enrollment_opens_at'].widget.format = datetime_local_format
+        self.fields['enrollment_closes_at'].widget.format = datetime_local_format
         self.fields['enrollment_opens_at'].input_formats = ['%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M']
         self.fields['enrollment_closes_at'].input_formats = ['%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M']
+        for field_name in ('enrollment_opens_at', 'enrollment_closes_at'):
+            value = self.initial.get(field_name)
+            if value:
+                if timezone.is_aware(value):
+                    value = timezone.localtime(value)
+                self.initial[field_name] = value.strftime(datetime_local_format)
 
     def clean(self):
         data = super().clean()

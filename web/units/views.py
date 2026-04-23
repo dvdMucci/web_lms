@@ -261,9 +261,9 @@ def tema_detail(request, course_id, unit_id, tema_id):
 
     from materials.models import Material
     if request.user.is_teacher() or request.user.user_type == 'admin':
-        materials = Material.objects.filter(tema=tema).order_by('-uploaded_at')
+        materials = Material.objects.filter(tema=tema, assignment__isnull=True).order_by('-uploaded_at')
     else:
-        materials = Material.objects.filter(tema=tema, is_published=True).order_by('-uploaded_at')
+        materials = Material.objects.filter(tema=tema, assignment__isnull=True, is_published=True).order_by('-uploaded_at')
 
     from assignments.models import Assignment
     if request.user.is_teacher() or request.user.user_type == 'admin':
@@ -512,7 +512,9 @@ def material_edit(request, course_id, unit_id, tema_id, material_id):
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     from materials.models import Material
-    material = get_object_or_404(Material, id=material_id, tema=tema, course=course)
+    material = get_object_or_404(
+        Material, id=material_id, tema=tema, course=course, assignment__isnull=True
+    )
 
     if not unit.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para editar este material.')
@@ -570,7 +572,9 @@ def material_delete(request, course_id, unit_id, tema_id, material_id):
     unit = get_object_or_404(Unit, id=unit_id, course=course)
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
     from materials.models import Material
-    material = get_object_or_404(Material, id=material_id, tema=tema, course=course)
+    material = get_object_or_404(
+        Material, id=material_id, tema=tema, course=course, assignment__isnull=True
+    )
 
     if not unit.can_be_managed_by(request.user):
         messages.error(request, 'No tienes permiso para eliminar este material.')

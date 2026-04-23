@@ -1,0 +1,95 @@
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="fas fa-file"></i> Material guía (estudio)</h5>
+        {% if can_manage %}
+        <a href="{% url 'assignments:assignment_material_upload' course.id unit.id tema.id assignment.id %}" class="btn btn-sm btn-success">
+            <i class="fas fa-upload"></i> Subir material guía
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if guide_materials %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Recurso</th>
+                        <th>Tipo</th>
+                        <th>Tamaño</th>
+                        <th>Subido</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for material in guide_materials %}
+                    <tr>
+                        <td>
+                            {% if material.material_type == 'file' %}
+                                <strong>{{ material.original_filename|default:"Archivo adjunto" }}</strong>
+                            {% else %}
+                                <strong>Enlace externo</strong>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if material.material_type == 'file' %}
+                            <span class="badge bg-primary">
+                                <i class="fas fa-file"></i> Archivo
+                            </span>
+                            {% else %}
+                            <span class="badge bg-info">
+                                <i class="fas fa-link"></i> Enlace
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if material.material_type == 'file' %}
+                                {% if material.file_size %}
+                                    {{ material.file_size|filesizeformat }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ material.uploaded_at|date:"d/m/Y" }}</small>
+                        </td>
+                        <td>
+                            {% if material.material_type == 'file' %}
+                            <a href="{% url 'materials:material-download' material.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i> Descargar
+                            </a>
+                            {% else %}
+                            <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info external-link-warning" data-link-url="{{ material.link_url }}">
+                                <i class="fas fa-external-link-alt"></i> Abrir Enlace
+                            </a>
+                            {% endif %}
+                            {% if can_manage %}
+                            <div class="btn-group mt-2" role="group">
+                                <a href="{% url 'assignments:assignment_material_edit' course.id unit.id tema.id assignment.id material.id %}" class="btn btn-sm btn-outline-warning">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
+                                <a href="{% url 'assignments:assignment_material_delete' course.id unit.id tema.id assignment.id material.id %}" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i> Eliminar
+                                </a>
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-3">
+            <p class="text-muted mb-0">No hay material guía adjunto a esta tarea.</p>
+            {% if can_manage %}
+            <a href="{% url 'assignments:assignment_material_upload' course.id unit.id tema.id assignment.id %}" class="btn btn-success btn-sm mt-2">
+                <i class="fas fa-upload"></i> Subir primer material
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>

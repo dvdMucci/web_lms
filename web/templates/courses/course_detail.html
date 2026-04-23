@@ -295,6 +295,9 @@
                         </a>
                         {% endif %}
                         {% endif %}
+                        <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-comments"></i> Foro del Curso
+                        </a>
                         <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary w-100 mb-2">
                             <i class="fas fa-arrow-left"></i> Volver a Cursos
                         </a>
@@ -342,17 +345,9 @@
                     <a href="{% url 'materials:material-list-create' course.id %}" class="btn btn-outline-primary w-100 mb-2">
                         <i class="fas fa-file"></i> Materiales del Curso
                     </a>
-                    {% comment %}
-                    <a href="{% url 'assignment_list' course.id %}" class="btn btn-outline-secondary w-100 mb-2">
-                        <i class="fas fa-tasks"></i> Tareas
+                    <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-info w-100 mb-2">
+                        <i class="fas fa-comments"></i> Foro del Curso
                     </a>
-                    <a href="{% url 'grade_list' course.id %}" class="btn btn-outline-success w-100 mb-2">
-                        <i class="fas fa-chart-line"></i> Calificaciones
-                    </a>
-                    <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-info w-100">
-                        <i class="fas fa-comments"></i> Foro
-                    </a>
-                    {% endcomment %}
                 </div>
             </div>
             {% endif %}

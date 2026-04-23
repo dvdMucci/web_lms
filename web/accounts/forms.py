@@ -91,6 +91,22 @@ class StudentRegistrationTokenCreateForm(forms.ModelForm):
             'max_uses': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        datetime_local_format = '%Y-%m-%dT%H:%M'
+        for field_name in ('starts_at', 'expires_at'):
+            self.fields[field_name].widget.format = datetime_local_format
+            self.fields[field_name].input_formats = [
+                '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M',
+            ]
+        if self.instance and self.instance.pk:
+            for field_name in ('starts_at', 'expires_at'):
+                value = getattr(self.instance, field_name, None)
+                if value:
+                    value = timezone.localtime(value)
+                    self.initial[field_name] = value.strftime(datetime_local_format)
+
     def clean(self):
         cleaned_data = super().clean()
         starts_at = cleaned_data.get('starts_at')

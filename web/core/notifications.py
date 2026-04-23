@@ -232,6 +232,139 @@ def notify_material_published(material):
     return sent_count
 
 
+def notify_forum_post(post):
+    """
+    Envía notificación cuando un docente crea una publicación en el foro.
+    - Post general: envía a todos los alumnos inscritos.
+    - Post privado (docente → alumno): envía solo al alumno participante.
+    - Post privado (alumno → docentes): envía al instructor y colaboradores.
+    """
+    from courses.models import Enrollment
+    from django.conf import settings as django_settings
+
+    author = post.author
+    course = post.course
+    site_url = getattr(django_settings, 'SITE_URL', 'https://marinaojeda.ar')
+    post_url = f"{site_url}/forum/{post.pk}/"
+
+    subject = f"Nuevo mensaje en el foro: {post.title}"
+    context_base = {
+        'post': post,
+        'course': course,
+        'post_url': post_url,
+        'project_name': 'Marina Ojeda LMS',
+    }
+
+    recipients = []
+
+    if post.is_private:
+        if author.is_student():
+            # Student notifies teachers
+            teachers = list(course.collaborators.all())
+            teachers.append(course.instructor)
+            for teacher in teachers:
+                if teacher.email:
+                    recipients.append(teacher)
+        else:
+            # Teacher notifies target student
+            student = post.student_participant
+            if student and _can_receive_student_email(student):
+                recipients.append(student)
+    else:
+        # General post: notify all enrolled students
+        enrollments = Enrollment.objects.filter(
+            course=course, status='approved'
+        ).select_related('student')
+        for enrollment in enrollments:
+            if _can_receive_student_email(enrollment.student):
+                recipients.append(enrollment.student)
+
+    sent = 0
+    for recipient in recipients:
+        context = {
+            **context_base,
+            'recipient_name': _full_name_or_username(recipient),
+        }
+        html = render_to_string('emails/forum_notification.html', context)
+        text = strip_tags(html)
+        if MailgunClient().send_message(
+            to_email=recipient.email,
+            subject=subject,
+            text=text,
+            html=html,
+            tags=['forum', 'post'],
+        ):
+            sent += 1
+    return sent
+
+
+def notify_forum_reply(reply):
+    """
+    Envía notificación cuando alguien responde en el foro.
+    Misma lógica de destinatarios que notify_forum_post pero el autor del reply
+    no se notifica a sí mismo.
+    """
+    from courses.models import Enrollment
+    from django.conf import settings as django_settings
+
+    author = reply.author
+    post = reply.post
+    course = post.course
+    site_url = getattr(django_settings, 'SITE_URL', 'https://marinaojeda.ar')
+    post_url = f"{site_url}/forum/{post.pk}/"
+
+    subject = f"Nueva respuesta en el foro: {post.title}"
+    context_base = {
+        'reply': reply,
+        'post': post,
+        'course': course,
+        'post_url': post_url,
+        'project_name': 'Marina Ojeda LMS',
+        'is_reply': True,
+    }
+
+    recipients = []
+
+    if post.is_private:
+        if author.is_student():
+            teachers = list(course.collaborators.all())
+            teachers.append(course.instructor)
+            for teacher in teachers:
+                if teacher.email and teacher != author:
+                    recipients.append(teacher)
+        else:
+            student = post.student_participant
+            if student and _can_receive_student_email(student) and student != author:
+                recipients.append(student)
+    else:
+        # General post: notify all enrolled students (only teacher replies reach here)
+        enrollments = Enrollment.objects.filter(
+            course=course, status='approved'
+        ).select_related('student')
+        for enrollment in enrollments:
+            student = enrollment.student
+            if _can_receive_student_email(student) and student != author:
+                recipients.append(student)
+
+    sent = 0
+    for recipient in recipients:
+        context = {
+            **context_base,
+            'recipient_name': _full_name_or_username(recipient),
+        }
+        html = render_to_string('emails/forum_notification.html', context)
+        text = strip_tags(html)
+        if MailgunClient().send_message(
+            to_email=recipient.email,
+            subject=subject,
+            text=text,
+            html=html,
+            tags=['forum', 'reply'],
+        ):
+            sent += 1
+    return sent
+
+
 def notify_assignment_published(assignment):
     """
     Envía notificaciones por correo a los estudiantes inscritos cuando se publica una tarea.

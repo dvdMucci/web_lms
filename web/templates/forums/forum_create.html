@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Discusión — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">
+            <i class="fas fa-plus-circle"></i> Nueva Discusión
+            <small class="fw-normal">— {{ course.title }}</small>
+          </h4>
+        </div>
+        <div class="card-body">
+          <form method="post" id="forum-create-form">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label for="{{ form.title.id_for_label }}" class="form-label fw-bold">
+                {{ form.title.label }}
+              </label>
+              {{ form.title }}
+              {% if form.title.errors %}
+                <div class="text-danger small">{{ form.title.errors }}</div>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.content.id_for_label }}" class="form-label fw-bold">
+                {{ form.content.label }}
+              </label>
+              {{ form.content }}
+              {% if form.content.errors %}
+                <div class="text-danger small">{{ form.content.errors }}</div>
+              {% endif %}
+            </div>
+
+            {% if is_teacher %}
+            <!-- Opciones solo para docentes -->
+            <div class="card bg-light mb-3">
+              <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-cog"></i> Opciones del docente</h6>
+
+                <!-- Checkbox: privado -->
+                <div class="form-check mb-3">
+                  {{ form.is_private }}
+                  <label class="form-check-label" for="{{ form.is_private.id_for_label }}">
+                    {{ form.is_private.label }}
+                  </label>
+                </div>
+
+                <!-- Selector alumno (solo visible si privado) -->
+                <div id="student-participant-wrapper" class="mb-3 d-none">
+                  <label for="{{ form.student_participant.id_for_label }}" class="form-label">
+                    {{ form.student_participant.label }}
+                  </label>
+                  {{ form.student_participant }}
+                  {% if form.student_participant.errors %}
+                    <div class="text-danger small">{{ form.student_participant.errors }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Checkbox: enviar email -->
+                <div class="form-check">
+                  {{ form.send_email }}
+                  <label class="form-check-label" for="{{ form.send_email.id_for_label }}">
+                    {{ form.send_email.label }}
+                    <span id="email-hint" class="text-muted small d-block">
+                      Se enviará a todos los alumnos inscriptos.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <!-- Opciones para alumnos: solo privado -->
+            <div class="card bg-light mb-3">
+              <div class="card-body">
+                <div class="form-check">
+                  {{ form.is_private }}
+                  <label class="form-check-label" for="{{ form.is_private.id_for_label }}">
+                    {{ form.is_private.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane"></i> Publicar
+              </button>
+              <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-secondary">
+                Cancelar
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% if is_teacher %}
+<script>
+(function() {
+  var privateCheck = document.getElementById('id_is_private');
+  var studentWrapper = document.getElementById('student-participant-wrapper');
+  var emailHint = document.getElementById('email-hint');
+
+  function updateVisibility() {
+    if (privateCheck && privateCheck.checked) {
+      if (studentWrapper) studentWrapper.classList.remove('d-none');
+      if (emailHint) emailHint.textContent = 'Se enviará solo al alumno seleccionado.';
+    } else {
+      if (studentWrapper) studentWrapper.classList.add('d-none');
+      if (emailHint) emailHint.textContent = 'Se enviará a todos los alumnos inscriptos.';
+    }
+  }
+
+  if (privateCheck) {
+    privateCheck.addEventListener('change', updateVisibility);
+    updateVisibility();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

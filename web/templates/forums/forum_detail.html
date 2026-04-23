@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ post.title }} — Foro{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Encabezado -->
+  <div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-start
+        {% if post.is_private %}bg-secondary text-white{% else %}bg-primary text-white{% endif %}">
+      <div>
+        <h4 class="mb-1">
+          {% if post.is_pinned %}<i class="fas fa-thumbtack me-1"></i>{% endif %}
+          {% if post.is_locked %}<i class="fas fa-lock me-1"></i>{% endif %}
+          {% if post.is_private %}<i class="fas fa-lock me-1"></i> [Privado] {% endif %}
+          {{ post.title }}
+        </h4>
+        <small>
+          <i class="fas fa-book me-1"></i>{{ course.title }}
+          &nbsp;·&nbsp;
+          <i class="fas fa-user me-1"></i>{{ post.author.get_full_name|default:post.author.username }}
+          &nbsp;·&nbsp;
+          <i class="fas fa-calendar me-1"></i>{{ post.created_at|date:"d/m/Y H:i" }}
+        </small>
+      </div>
+      <div class="d-flex gap-2 ms-3">
+        {% if can_pin %}
+        <form method="post" action="{% url 'forum_pin' post.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-warning btn-sm">
+            <i class="fas fa-thumbtack"></i>
+            {% if post.is_pinned %}Desfijar{% else %}Fijar{% endif %}
+          </button>
+        </form>
+        {% endif %}
+        {% if can_edit %}
+        <a href="{% url 'forum_edit' post.id %}" class="btn btn-outline-light btn-sm">
+          <i class="fas fa-edit"></i> Editar
+        </a>
+        <form method="post" action="{% url 'forum_delete' post.id %}"
+              onsubmit="return confirm('¿Eliminar esta discusión y todas sus respuestas?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="fas fa-trash"></i>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="mb-0">{{ post.content|linebreaks }}</div>
+    </div>
+  </div>
+
+  <!-- Respuestas -->
+  <h5 class="mb-3">
+    <i class="fas fa-reply"></i> {{ post.replies_count }} respuesta{{ post.replies_count|pluralize }}
+  </h5>
+
+  {% for reply in replies %}
+  <div class="card mb-3 {% if reply.author.is_teacher or reply.author.user_type == 'admin' %}border-primary{% endif %}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          {% if reply.author.is_teacher or reply.author.user_type == 'admin' %}
+            <i class="fas fa-chalkboard-teacher text-primary me-1"></i>
+          {% else %}
+            <i class="fas fa-user-graduate text-success me-1"></i>
+          {% endif %}
+          <strong>{{ reply.author.get_full_name|default:reply.author.username }}</strong>
+          <small class="text-muted ms-2">{{ reply.created_at|date:"d/m/Y H:i" }}</small>
+        </div>
+        {% if user == reply.author or is_teacher %}
+        <form method="post" action="{% url 'forum_reply_delete' post.id reply.id %}"
+              onsubmit="return confirm('¿Eliminar esta respuesta?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+            <i class="fas fa-trash"></i>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      <div>{{ reply.content|linebreaks }}</div>
+
+      <!-- Respuestas anidadas -->
+      {% if reply.nested_replies.all %}
+      <div class="ms-4 mt-3 border-start ps-3">
+        {% for nested in reply.nested_replies.all %}
+        <div class="mb-2">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <div>
+              {% if nested.author.is_teacher or nested.author.user_type == 'admin' %}
+                <i class="fas fa-chalkboard-teacher text-primary me-1"></i>
+              {% else %}
+                <i class="fas fa-user-graduate text-success me-1"></i>
+              {% endif %}
+              <strong>{{ nested.author.get_full_name|default:nested.author.username }}</strong>
+              <small class="text-muted ms-2">{{ nested.created_at|date:"d/m/Y H:i" }}</small>
+            </div>
+            {% if user == nested.author or is_teacher %}
+            <form method="post" action="{% url 'forum_reply_delete' post.id nested.id %}"
+                  onsubmit="return confirm('¿Eliminar esta respuesta?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          <div>{{ nested.content|linebreaks }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Botón para responder a esta respuesta -->
+      {% if can_reply %}
+      <div class="mt-2">
+        <button class="btn btn-link btn-sm p-0 text-muted toggle-reply-form"
+                data-target="reply-form-{{ reply.id }}">
+          <i class="fas fa-reply"></i> Responder
+        </button>
+        <div id="reply-form-{{ reply.id }}" class="mt-2 d-none">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="parent_reply_id" value="{{ reply.id }}">
+            <div class="mb-2">
+              <textarea name="content" class="form-control" rows="2"
+                        placeholder="Responder a {{ reply.author.get_full_name|default:reply.author.username }}..."
+                        required></textarea>
+            </div>
+            {% if reply_form.fields.send_email %}
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="send_email" id="send_email_nested_{{ reply.id }}">
+              <label class="form-check-label" for="send_email_nested_{{ reply.id }}">
+                Enviar notificación por email
+              </label>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="fas fa-paper-plane"></i> Enviar
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-3">
+    <i class="fas fa-comments fa-2x mb-2"></i>
+    <p>Aún no hay respuestas. Sé el primero en responder.</p>
+  </div>
+  {% endfor %}
+
+  <!-- Formulario de respuesta principal -->
+  {% if can_reply %}
+  <div class="card shadow mt-4">
+    <div class="card-header bg-light">
+      <h6 class="mb-0"><i class="fas fa-plus-circle"></i> Agregar Respuesta</h6>
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          {{ reply_form.content }}
+          {% if reply_form.content.errors %}
+            <div class="text-danger small">{{ reply_form.content.errors }}</div>
+          {% endif %}
+        </div>
+        {% if reply_form.fields.send_email %}
+        <div class="form-check mb-3">
+          {{ reply_form.send_email }}
+          <label class="form-check-label" for="{{ reply_form.send_email.id_for_label }}">
+            {{ reply_form.send_email.label }}
+          </label>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-paper-plane"></i> Enviar Respuesta
+        </button>
+      </form>
+    </div>
+  </div>
+  {% elif post.is_locked %}
+  <div class="alert alert-secondary mt-4">
+    <i class="fas fa-lock me-1"></i> Esta discusión está bloqueada. No se pueden agregar más respuestas.
+  </div>
+  {% endif %}
+
+  <div class="mt-4">
+    <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left"></i> Volver al foro
+    </a>
+  </div>
+
+</div>
+
+<script>
+document.querySelectorAll('.toggle-reply-form').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var target = document.getElementById(this.dataset.target);
+    target.classList.toggle('d-none');
+  });
+});
+</script>
+{% endblock %}

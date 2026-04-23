@@ -125,7 +125,10 @@ class MaterialUploadForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         self.course = kwargs.pop('course', None)
         self.tema = kwargs.pop('tema', None)
+        self.assignment = kwargs.pop('assignment', None)
         super().__init__(*args, **kwargs)
+        datetime_local_format = '%Y-%m-%dT%H:%M'
+        self.fields['scheduled_publish_at'].widget.format = datetime_local_format
         # Aceptar el formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
         self.fields['scheduled_publish_at'].input_formats = [
             '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
@@ -134,6 +137,11 @@ class MaterialUploadForm(forms.ModelForm):
         # Set initial material type
         if self.instance and self.instance.pk:
             self.fields['material_type'].initial = self.instance.material_type
+            value = getattr(self.instance, 'scheduled_publish_at', None)
+            if value:
+                from django.utils import timezone
+                value = timezone.localtime(value)
+                self.initial['scheduled_publish_at'] = value.strftime(datetime_local_format)
         else:
             self.fields['material_type'].initial = 'file'
     
@@ -171,6 +179,10 @@ class MaterialUploadForm(forms.ModelForm):
                 raise forms.ValidationError({
                     'scheduled_publish_at': 'La fecha de publicación programada debe ser en el futuro.'
                 })
+
+        if self.assignment is not None and self.tema is not None:
+            if self.assignment.tema_id != self.tema.id:
+                raise forms.ValidationError('El tema del formulario no coincide con la tarea.')
         
         return cleaned_data
     
@@ -179,6 +191,8 @@ class MaterialUploadForm(forms.ModelForm):
         # Si hay una fecha programada, no publicar ahora
         if material.scheduled_publish_at:
             material.is_published = False
+        if self.assignment is not None:
+            material.assignment = self.assignment
         
         if commit:
             material.save()

@@ -31,6 +31,18 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 
+def _guide_materials_for_request_user(user, assignment):
+    """Materiales guía de la tarea visibles para el usuario (docente: todos; alumno: publicados y no privados)."""
+    from materials.models import Material
+
+    qs = Material.objects.filter(assignment=assignment).order_by('-uploaded_at')
+    if user.is_teacher() or user.user_type == 'admin':
+        return qs
+    return qs.filter(is_published=True).filter(
+        Q(visibility='public') | Q(visibility='enrolled')
+    )
+
+
 def _resolve_submission_file_field(submission, attachment_id=None):
     """
     Devuelve (django FileField file, nombre para descarga) o (None, None).
@@ -356,8 +368,25 @@ def assignment_create(request, course_id, unit_id, tema_id):
                     actor=request.user,
                     details=f'Tarea "{assignment.title}" creada en "{course.title}"',
                 )
-                
-                return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
+                messages.info(
+                    request,
+                    'Podés agregar material guía opcional (archivo o enlace) desde esta pantalla; no es obligatorio.',
+                )
+                if request.POST.get('create_and_add_material') == '1':
+                    return redirect(
+                        'assignments:assignment_material_upload',
+                        course_id=course_id,
+                        unit_id=unit_id,
+                        tema_id=tema_id,
+                        assignment_id=assignment.id,
+                    )
+                return redirect(
+                    'assignments:assignment_detail',
+                    course_id=course_id,
+                    unit_id=unit_id,
+                    tema_id=tema_id,
+                    assignment_id=assignment.id,
+                )
             except ValidationError as e:
                 messages.error(request, str(e))
     else:
@@ -504,6 +533,7 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         'assignment': assignment,
         'is_teacher': is_teacher,
         'can_manage': can_manage,
+        'guide_materials': _guide_materials_for_request_user(request.user, assignment),
     }
     
     if is_teacher:
@@ -946,3 +976,251 @@ def submission_attachment_download(request, course_id, unit_id, tema_id, assignm
         attachment_id,
         inline=False,
     )
+
+
+def _assignment_material_redirect_kwargs(course_id, unit_id, tema_id, assignment_id):
+    return {
+        'course_id': course_id,
+        'unit_id': unit_id,
+        'tema_id': tema_id,
+        'assignment_id': assignment_id,
+    }
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def assignment_material_upload(request, course_id, unit_id, tema_id, assignment_id):
+    from django.urls import reverse
+    from units.forms import MaterialUploadForm
+
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    kw = _assignment_material_redirect_kwargs(course_id, unit_id, tema_id, assignment_id)
+
+    if not assignment.can_be_managed_by(request.user):
+        messages.error(request, 'No tenés permiso para subir material guía en esta tarea.')
+        return redirect('assignments:assignment_detail', **kw)
+
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        post_data['title'] = assignment.title
+        post_data['description'] = assignment.description
+        form = MaterialUploadForm(
+            post_data,
+            request.FILES,
+            user=request.user,
+            course=course,
+            tema=tema,
+            assignment=assignment,
+        )
+        if form.is_valid():
+            material = form.save(commit=False)
+            material.course = course
+            material.tema = tema
+            material.uploaded_by = request.user
+            material.material_type = form.cleaned_data['material_type']
+
+            if material.material_type == 'file' and material.file:
+                if not material.original_filename:
+                    material.original_filename = os.path.basename(material.file.name)
+
+            material.save()
+
+            if material.is_published and not material.scheduled_publish_at and material.send_notification_email:
+                try:
+                    from core.notifications import notify_material_published
+                    sent = notify_material_published(material)
+                    if sent > 0:
+                        messages.success(
+                            request,
+                            f'Material guía "{material.title}" subido y publicado. Se enviaron {sent} notificaciones por correo.',
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f'Material guía "{material.title}" subido y publicado exitosamente.',
+                        )
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error('Error al enviar notificaciones para material %s: %s', material.id, e)
+                    messages.success(
+                        request,
+                        f'Material guía "{material.title}" subido. (Error al enviar notificaciones)',
+                    )
+            else:
+                if material.scheduled_publish_at:
+                    messages.success(
+                        request,
+                        f'Material guía "{material.title}" guardado. Se publicará el '
+                        f'{material.scheduled_publish_at.strftime("%d/%m/%Y a las %H:%M")}.',
+                    )
+                else:
+                    messages.success(request, f'Material guía "{material.title}" subido exitosamente.')
+            log_user_activity(
+                action=UserActivityLog.ACTION_MATERIAL_UPLOADED,
+                actor=request.user,
+                details=f'Material guía "{material.title}" en tarea "{assignment.title}" / {course.title}',
+            )
+            return redirect('assignments:assignment_detail', **kw)
+    else:
+        form = MaterialUploadForm(
+            user=request.user,
+            course=course,
+            tema=tema,
+            assignment=assignment,
+        )
+
+    material_cancel_url = reverse('assignments:assignment_detail', kwargs=kw)
+    context = {
+        'form': form,
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'assignment': assignment,
+        'title': 'Subir material guía',
+        'material_cancel_url': material_cancel_url,
+    }
+    return render(request, 'units/material_upload.html', context)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def assignment_material_edit(request, course_id, unit_id, tema_id, assignment_id, material_id):
+    from django.urls import reverse
+    from materials.models import Material
+    from units.forms import MaterialEditForm
+
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    material = get_object_or_404(
+        Material,
+        id=material_id,
+        assignment=assignment,
+        tema=tema,
+        course=course,
+    )
+    kw = _assignment_material_redirect_kwargs(course_id, unit_id, tema_id, assignment_id)
+
+    if not assignment.can_be_managed_by(request.user):
+        messages.error(request, 'No tenés permiso para editar este material guía.')
+        return redirect('assignments:assignment_detail', **kw)
+
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        post_data['title'] = assignment.title
+        post_data['description'] = assignment.description
+        form = MaterialEditForm(
+            post_data,
+            request.FILES,
+            instance=material,
+            user=request.user,
+            course=course,
+            tema=tema,
+            assignment=assignment,
+        )
+        if form.is_valid():
+            old_is_published = material.is_published
+            material = form.save()
+            if not old_is_published and material.is_published and not material.scheduled_publish_at and material.send_notification_email:
+                try:
+                    from core.notifications import notify_material_published
+                    sent = notify_material_published(material)
+                    if sent > 0:
+                        messages.success(
+                            request,
+                            f'Material guía "{material.title}" actualizado y publicado. Se enviaron {sent} notificaciones por correo.',
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f'Material guía "{material.title}" actualizado y publicado exitosamente.',
+                        )
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error('Error al enviar notificaciones para material %s: %s', material.id, e)
+                    messages.success(
+                        request,
+                        f'Material guía "{material.title}" actualizado. (Error al enviar notificaciones)',
+                    )
+            else:
+                messages.success(request, f'Material guía "{material.title}" actualizado exitosamente.')
+            log_user_activity(
+                action=UserActivityLog.ACTION_MATERIAL_UPDATED,
+                actor=request.user,
+                details=f'Material guía "{material.title}" en tarea "{assignment.title}"',
+            )
+            return redirect('assignments:assignment_detail', **kw)
+    else:
+        form = MaterialEditForm(
+            instance=material,
+            user=request.user,
+            course=course,
+            tema=tema,
+            assignment=assignment,
+        )
+
+    material_cancel_url = reverse('assignments:assignment_detail', kwargs=kw)
+    context = {
+        'form': form,
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'assignment': assignment,
+        'material': material,
+        'title': 'Editar material guía',
+        'material_cancel_url': material_cancel_url,
+    }
+    return render(request, 'units/material_edit.html', context)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def assignment_material_delete(request, course_id, unit_id, tema_id, assignment_id, material_id):
+    from django.urls import reverse
+    from materials.models import Material
+
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    material = get_object_or_404(
+        Material,
+        id=material_id,
+        assignment=assignment,
+        tema=tema,
+        course=course,
+    )
+    kw = _assignment_material_redirect_kwargs(course_id, unit_id, tema_id, assignment_id)
+
+    if not assignment.can_be_managed_by(request.user):
+        messages.error(request, 'No tenés permiso para eliminar este material guía.')
+        return redirect('assignments:assignment_detail', **kw)
+
+    if request.method == 'POST':
+        material_title = material.title
+        log_user_activity(
+            action=UserActivityLog.ACTION_MATERIAL_DELETED,
+            actor=request.user,
+            details=f'Material guía "{material_title}" eliminado de tarea "{assignment.title}"',
+        )
+        material.delete()
+        messages.success(request, f'Material guía "{material_title}" eliminado exitosamente.')
+        return redirect('assignments:assignment_detail', **kw)
+
+    material_cancel_url = reverse('assignments:assignment_detail', kwargs=kw)
+    context = {
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'assignment': assignment,
+        'material': material,
+        'has_file': bool(material.file),
+        'material_cancel_url': material_cancel_url,
+    }
+    return render(request, 'units/material_delete_confirm.html', context)

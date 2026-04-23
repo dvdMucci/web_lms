@@ -52,6 +52,8 @@
                 </div>
             </div>
 
+            {% include 'assignments/_assignment_guide_materials.html' %}
+
             {% if assignment.allow_group_work and collaborators %}
             <div class="card shadow mb-4">
                 <div class="card-header">
@@ -199,4 +201,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.external-link-warning').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const url = this.getAttribute('data-link-url') || this.getAttribute('href');
+        const message = 'Estás a punto de salir de la plataforma y acceder a un enlace externo.\n\n' +
+                       'URL: ' + url + '\n\n' +
+                       '¿Deseas continuar?';
+        if (confirm(message)) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    });
+});
+</script>
 {% endblock %}

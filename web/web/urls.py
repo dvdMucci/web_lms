@@ -2,8 +2,9 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from accounts.views import dashboard # Importa el dashboard de tu app 'accounts'
-from courses import views as course_views # Importa las vistas de cursos para el dashboard
+from accounts.views import dashboard
+from courses import views as course_views
+from forums import views as forum_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,4 +45,12 @@ urlpatterns = [
         path('enrolled/', course_views.course_list_enrolled, name='course_list_enrolled'),
         path('<int:course_id>/enroll/', course_views.enrollment_create, name='enrollment_create'),
     ])),
+    # Forum URLs
+    path('courses/<int:course_id>/forum/', forum_views.forum_list, name='forum_list'),
+    path('courses/<int:course_id>/forum/create/', forum_views.forum_create, name='forum_create'),
+    path('forum/<int:post_id>/', forum_views.forum_detail, name='forum_detail'),
+    path('forum/<int:post_id>/edit/', forum_views.forum_edit, name='forum_edit'),
+    path('forum/<int:post_id>/delete/', forum_views.forum_delete, name='forum_delete'),
+    path('forum/<int:post_id>/pin/', forum_views.forum_pin, name='forum_pin'),
+    path('forum/<int:post_id>/reply/<int:reply_id>/delete/', forum_views.reply_delete, name='forum_reply_delete'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

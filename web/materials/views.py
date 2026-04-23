@@ -27,20 +27,69 @@ class IsInstructorOrAdmin(permissions.BasePermission):
         )
 
 
+def _assignment_guide_staff_can_view(user, material):
+    """Instructor, colaborador o admin de la tarea pueden ver material guía."""
+    if not material.assignment_id:
+        return False
+    from assignments.models import Assignment
+    try:
+        assignment = Assignment.objects.get(pk=material.assignment_id)
+    except Assignment.DoesNotExist:
+        return False
+    return assignment.can_be_managed_by(user)
+
+
+def _student_can_view_assignment_guide(user, material):
+    """Estudiante inscrito con acceso a la tarea y al material publicado."""
+    assignment = material.assignment
+    if assignment is None:
+        return False
+    if not user.is_student():
+        return False
+    if not Enrollment.objects.filter(
+        student=user,
+        course=material.course,
+        status='approved',
+    ).exists():
+        return False
+    if not (
+        assignment.is_active
+        and assignment.is_published
+        and material.tema.is_visible_to_students()
+    ):
+        return False
+    if not material.is_published:
+        return False
+    if material.visibility == 'private':
+        return False
+    if material.visibility in ('public', 'enrolled'):
+        return True
+    return False
+
+
 class CanViewMaterial(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+
+        if obj.assignment_id:
+            if _assignment_guide_staff_can_view(user, obj):
+                return True
+            if _student_can_view_assignment_guide(user, obj):
+                return True
+            return False
+
         if obj.visibility == 'public':
             return True
-        elif obj.visibility == 'enrolled':
-            # Check if user is enrolled in the course
+        if obj.visibility == 'enrolled':
             return Enrollment.objects.filter(
-                student=request.user,
+                student=user,
                 course=obj.course,
-                status='approved'
-            ).exists() or obj.uploaded_by == request.user or request.user.user_type == 'admin'
-        elif obj.visibility == 'private':
-            # Only uploader or admin can view
-            return obj.uploaded_by == request.user or request.user.user_type == 'admin'
+                status='approved',
+            ).exists() or obj.uploaded_by == user or user.user_type == 'admin'
+        if obj.visibility == 'private':
+            return obj.uploaded_by == user or user.user_type == 'admin'
         return False
 
 
@@ -62,8 +111,8 @@ class MaterialListCreateView(generics.ListCreateAPIView):
         course_id = self.kwargs.get('course_id')
         course = get_object_or_404(Course, id=course_id)
 
-        # Base queryset
-        queryset = Material.objects.filter(course=course)
+        # Base queryset (materiales del curso/tema, no guías de tareas)
+        queryset = Material.objects.filter(course=course, assignment__isnull=True)
 
         # Filter based on user permissions
         user = self.request.user
@@ -176,7 +225,7 @@ def material_list(request, course_id):
     # Get materials based on user permissions
     if request.user.is_teacher() or request.user.user_type == 'admin':
         # Teachers and admins see all materials
-        materials = Material.objects.filter(course=course).order_by('-uploaded_at')
+        materials = Material.objects.filter(course=course, assignment__isnull=True).order_by('-uploaded_at')
     else:
         # Students see materials based on visibility and publication status
         enrolled = Enrollment.objects.filter(
@@ -189,6 +238,7 @@ def material_list(request, course_id):
             # Show public and enrolled materials that are published
             materials = Material.objects.filter(
                 course=course,
+                assignment__isnull=True,
                 visibility__in=['public', 'enrolled'],
                 is_published=True
             ).order_by('-uploaded_at')
@@ -196,6 +246,7 @@ def material_list(request, course_id):
             # Show only public materials that are published
             materials = Material.objects.filter(
                 course=course,
+                assignment__isnull=True,
                 visibility='public',
                 is_published=True
             ).order_by('-uploaded_at')

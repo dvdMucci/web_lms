@@ -11,6 +11,21 @@ urlpatterns = [
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/', views.assignment_detail, name='assignment_detail'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/edit/', views.assignment_edit, name='assignment_edit'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/delete/', views.assignment_delete, name='assignment_delete'),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/materials/upload/',
+        views.assignment_material_upload,
+        name='assignment_material_upload',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/materials/<int:material_id>/edit/',
+        views.assignment_material_edit,
+        name='assignment_material_edit',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/materials/<int:material_id>/delete/',
+        views.assignment_material_delete,
+        name='assignment_material_delete',
+    ),
     
     # Submissions
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/upload/', views.submission_upload, name='submission_upload'),

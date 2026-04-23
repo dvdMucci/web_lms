@@ -495,7 +495,20 @@ def enrollment_open(request, course_id):
             messages.success(request, 'Inscripción abierta correctamente.')
             return redirect('course_detail', course_id=course_id)
     else:
-        form = EnrollmentOpenForm()
+        initial = {}
+        if course.enrollment_opens_at and course.enrollment_closes_at:
+            initial['mode'] = MODE_SCHEDULED
+        elif course.enrollment_opens_at and not course.enrollment_closes_at:
+            initial['mode'] = MODE_SCHEDULED
+        elif (not course.enrollment_opens_at) and course.enrollment_closes_at:
+            initial['mode'] = MODE_PERIOD
+        else:
+            initial['mode'] = MODE_NOW
+        if course.enrollment_opens_at:
+            initial['enrollment_opens_at'] = course.enrollment_opens_at
+        if course.enrollment_closes_at:
+            initial['enrollment_closes_at'] = course.enrollment_closes_at
+        form = EnrollmentOpenForm(initial=initial)
 
     return render(request, 'courses/enrollment_open_form.html', {'form': form, 'course': course})
 

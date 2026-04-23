@@ -61,6 +61,8 @@
                 </div>
             </div>
 
+            {% include 'assignments/_assignment_guide_materials.html' %}
+
             <div class="card shadow">
                 <div class="card-header">
                     <h5><i class="fas fa-list-check"></i> Entregas de Estudiantes</h5>
@@ -178,4 +180,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.external-link-warning').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const url = this.getAttribute('data-link-url') || this.getAttribute('href');
+        const message = 'Estás a punto de salir de la plataforma y acceder a un enlace externo.\n\n' +
+                       'URL: ' + url + '\n\n' +
+                       '¿Deseas continuar?';
+        if (confirm(message)) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    });
+});
+</script>
 {% endblock %}

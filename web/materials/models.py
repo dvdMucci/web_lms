@@ -44,6 +44,15 @@ class Material(models.Model):
         related_name="materials",
         verbose_name="Tema"
     )
+    assignment = models.ForeignKey(
+        'assignments.Assignment',
+        on_delete=models.CASCADE,
+        related_name='guide_materials',
+        verbose_name='Tarea (material guía)',
+        null=True,
+        blank=True,
+        help_text='Si se indica, el material es guía de esa tarea y no aparece en la lista de materiales del tema.',
+    )
     material_type = models.CharField(
         max_length=10,
         choices=MATERIAL_TYPE_CHOICES,
@@ -124,6 +133,17 @@ class Material(models.Model):
                     if tema.unit.course_id != self.course_id:
                         raise ValidationError("El tema debe pertenecer al curso especificado.")
                 except Tema.DoesNotExist:
+                    pass
+
+            if self.assignment_id is not None:
+                from assignments.models import Assignment
+                try:
+                    asn = Assignment.objects.get(pk=self.assignment_id)
+                    if asn.course_id != self.course_id:
+                        raise ValidationError("La tarea debe pertenecer al mismo curso que el material.")
+                    if asn.tema_id != self.tema_id:
+                        raise ValidationError("La tarea debe pertenecer al mismo tema que el material.")
+                except Assignment.DoesNotExist:
                     pass
         
         # Validate material type
