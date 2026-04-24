@@ -177,8 +177,16 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-# Servir estáticos con el mismo proceso WSGI/asgi (necesario con DEBUG=False detrás del proxy).
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# Django 5.x: usar STORAGES en lugar del deprecado STATICFILES_STORAGE.
+# CompressedManifestStaticFilesStorage = compresión gzip + nombres hasheados (cache-bust automático).
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 MEDIA_URL = '/media/'
 # MEDIA_ROOT apunta al bucket de Oracle OCI montado
 MEDIA_ROOT = '/home/ubuntu/marinaOjedaS3/media'
