@@ -143,4 +143,11 @@
         </div>
     </div>
     {% endif %}
+
+    <div style="margin-top:15px;">
+        <a href="{% url 'admin:core_storageconfig_orphaned_files' %}"
+           style="display:inline-block;background:#dc3545;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;font-weight:bold;">
+            🗑 Archivos Huérfanos
+        </a>
+    </div>
 {% endblock %}

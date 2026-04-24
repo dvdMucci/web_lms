@@ -1,0 +1,191 @@
+/* Dark mode overrides — se activa con .dark-mode en <html> */
+.dark-mode {
+    --dm-bg: #1a1a2e;
+    --dm-bg-secondary: #16213e;
+    --dm-bg-card: #0f3460;
+    --dm-text: #e0e0e0;
+    --dm-text-muted: #a0a0b0;
+    --dm-border: #2a2a4a;
+    --dm-input-bg: #1e1e3a;
+    --dm-table-stripe: #1c1c35;
+    /* Override Bootstrap CSS variables */
+    --bs-body-bg: #1a1a2e;
+    --bs-body-color: #e0e0e0;
+    --bs-card-bg: #16213e;
+    --bs-border-color: #2a2a4a;
+}
+
+.dark-mode body {
+    background-color: var(--dm-bg) !important;
+    color: var(--dm-text) !important;
+}
+
+/* Cards */
+.dark-mode .card {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .card-header {
+    background-color: var(--dm-bg-card);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .card-footer {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+}
+
+/* Tables */
+.dark-mode .table {
+    color: var(--dm-text);
+}
+.dark-mode .table > :not(caption) > * > * {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--dm-table-stripe);
+}
+.dark-mode .table-hover > tbody > tr:hover > * {
+    background-color: var(--dm-bg-card);
+}
+
+/* Forms */
+.dark-mode .form-control,
+.dark-mode .form-select,
+.dark-mode .form-check-input {
+    background-color: var(--dm-input-bg);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .form-control:focus,
+.dark-mode .form-select:focus {
+    background-color: var(--dm-input-bg);
+    border-color: #5a8dee;
+    color: var(--dm-text);
+    box-shadow: 0 0 0 0.2rem rgba(90, 141, 238, 0.25);
+}
+.dark-mode .form-control::placeholder {
+    color: var(--dm-text-muted);
+}
+.dark-mode .form-text,
+.dark-mode .text-muted {
+    color: var(--dm-text-muted) !important;
+}
+
+/* Alerts */
+.dark-mode .alert-light {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .alert-warning {
+    background-color: #3d3010;
+    border-color: #7a6000;
+    color: #ffd060;
+}
+.dark-mode .alert-info {
+    background-color: #0d2e40;
+    border-color: #1a5a7a;
+    color: #7ecff5;
+}
+.dark-mode .alert-success {
+    background-color: #0d2e1e;
+    border-color: #1a5a30;
+    color: #6fd49a;
+}
+.dark-mode .alert-danger {
+    background-color: #2e0d0d;
+    border-color: #7a1a1a;
+    color: #f57e7e;
+}
+
+/* Badges */
+.dark-mode .badge.bg-light {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+}
+
+/* Dropdown */
+.dark-mode .dropdown-menu {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+}
+.dark-mode .dropdown-item {
+    color: var(--dm-text);
+}
+.dark-mode .dropdown-item:hover,
+.dark-mode .dropdown-item:focus {
+    background-color: var(--dm-bg-card);
+    color: var(--dm-text);
+}
+.dark-mode .dropdown-divider {
+    border-color: var(--dm-border);
+}
+
+/* List groups */
+.dark-mode .list-group-item {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .list-group-item:hover {
+    background-color: var(--dm-bg-card);
+}
+
+/* Modals */
+.dark-mode .modal-content {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .modal-header,
+.dark-mode .modal-footer {
+    border-color: var(--dm-border);
+}
+
+/* bg-light overrides */
+.dark-mode .bg-light {
+    background-color: var(--dm-bg-secondary) !important;
+    color: var(--dm-text) !important;
+}
+
+/* Breadcrumb */
+.dark-mode .breadcrumb {
+    background-color: transparent;
+}
+.dark-mode .breadcrumb-item,
+.dark-mode .breadcrumb-item a {
+    color: var(--dm-text-muted);
+}
+.dark-mode .breadcrumb-item.active {
+    color: var(--dm-text);
+}
+
+/* Hr */
+.dark-mode hr {
+    border-color: var(--dm-border);
+}
+
+/* Theme toggle icon */
+#theme-toggle {
+    transition: transform 0.2s;
+}
+#theme-toggle:hover {
+    transform: rotate(20deg);
+}
+
+/* Student view banner */
+.student-view-banner {
+    background-color: #b91c1c;
+    color: white;
+    font-size: 0.9rem;
+    position: sticky;
+    top: 0;
+    z-index: 1050;
+}
+.dark-mode .student-view-banner {
+    background-color: #7f1d1d;
+}

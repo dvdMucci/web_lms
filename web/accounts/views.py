@@ -301,7 +301,9 @@ def dashboard(request):
         'user_count': CustomUser.objects.count() if request.user.can_manage_users() else None,
     }
 
-    if request.user.is_student():
+    viewing_as_student = getattr(request, 'viewing_as_student', False)
+
+    if request.user.is_student() or viewing_as_student:
         from assignments.models import Assignment, AssignmentSubmission
         from courses.models import Enrollment
 
@@ -369,7 +371,7 @@ def dashboard(request):
                     'block_message': msg or '',
                 }
             )
-    elif request.user.is_teacher() or request.user.user_type == 'admin':
+    elif (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student:
         from courses.models import Enrollment
 
         if request.user.user_type == 'admin':
@@ -771,3 +773,24 @@ def change_password(request):
         form = ChangePasswordForm(request.user)
     
     return render(request, 'accounts/change_password.html', {'form': form, 'title': 'Cambiar Contraseña'})
+
+
+@login_required
+def toggle_student_view(request):
+    """Activa/desactiva la vista de alumno para docentes y administradores."""
+    from django.shortcuts import redirect as redir
+    user = request.user
+    is_staff = user.user_type in ('teacher', 'admin') if hasattr(user, 'user_type') else False
+    if not is_staff:
+        messages.error(request, 'No tienes permiso para usar esta función.')
+        return redir('dashboard')
+
+    if request.session.get('view_as_student'):
+        del request.session['view_as_student']
+        messages.success(request, 'Volviste a la vista de docente.')
+    else:
+        request.session['view_as_student'] = True
+        messages.info(request, 'Estás viendo el sitio como alumno. Los botones de gestión están ocultos.')
+
+    next_url = request.META.get('HTTP_REFERER', '/')
+    return redir(next_url)

@@ -1,0 +1,102 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Archivos Huérfanos del Storage{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Archivos Huérfanos del Storage</h1>
+    <p class="help">
+        Estos archivos están en el servidor pero <strong>no están asociados a ningún material ni entrega</strong>.
+        Verificá cuidadosamente antes de eliminar.
+    </p>
+
+    {% if messages %}
+    <ul class="messagelist">
+        {% for message in messages %}
+        <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="module" style="margin-bottom: 1rem;">
+        <h2>Resumen</h2>
+        <p>
+            Archivos huérfanos encontrados: <strong>{{ orphans|length }}</strong> —
+            Espacio que ocupan: <strong>{{ total_orphan_size_mb }} MB</strong>
+        </p>
+        <p>
+            <a href="{% url 'admin:core_storageconfig_changelist' %}" class="button">← Volver a Configuración de Storage</a>
+        </p>
+    </div>
+
+    {% if orphans %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="module">
+            <h2>Lista de archivos huérfanos</h2>
+            <table id="result_list">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all" title="Seleccionar todos"></th>
+                        <th>Ruta relativa</th>
+                        <th>Tamaño</th>
+                        <th>Última modificación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for orphan in orphans %}
+                    <tr>
+                        <td><input type="checkbox" name="files_to_delete" value="{{ orphan.path }}" class="file-checkbox"></td>
+                        <td><code>{{ orphan.path }}</code></td>
+                        <td>{{ orphan.size_kb }} KB</td>
+                        <td>{{ orphan.modified }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="module" style="padding: 1rem; background: #fff3cd; border-left: 4px solid #ffc107;">
+            <p><strong>⚠ Atención:</strong> Esta acción es <strong>irreversible</strong>. Los archivos eliminados no se pueden recuperar.</p>
+            <div style="margin-bottom: 0.75rem;">
+                <label>
+                    <input type="checkbox" id="confirm-delete" required>
+                    Confirmo que revisé la lista y quiero eliminar los archivos seleccionados permanentemente.
+                </label>
+            </div>
+            <input type="submit" value="Eliminar archivos seleccionados" class="button" id="submit-btn"
+                   style="background: #ba2121; color: white; border: none; padding: 8px 16px; cursor: pointer;">
+        </div>
+    </form>
+
+    <script>
+    document.getElementById('select-all').addEventListener('change', function () {
+        document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = this.checked);
+    });
+    document.getElementById('submit-btn').addEventListener('click', function (e) {
+        const confirmed = document.getElementById('confirm-delete').checked;
+        const selected = document.querySelectorAll('.file-checkbox:checked').length;
+        if (!confirmed) {
+            e.preventDefault();
+            alert('Debes confirmar que querés eliminar los archivos.');
+            return;
+        }
+        if (selected === 0) {
+            e.preventDefault();
+            alert('No seleccionaste ningún archivo.');
+            return;
+        }
+        if (!confirm(`¿Estás seguro de eliminar ${selected} archivo(s)? Esta acción no se puede deshacer.`)) {
+            e.preventDefault();
+        }
+    });
+    </script>
+
+    {% else %}
+    <div class="module" style="padding: 1rem; background: #d4edda; border-left: 4px solid #28a745;">
+        <p><strong>✓ Sin archivos huérfanos.</strong> Todos los archivos del storage están asociados a materiales o entregas.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

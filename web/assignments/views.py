@@ -523,9 +523,10 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         messages.error(request, 'No tienes permiso para ver esta tarea.')
         return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
-    is_teacher = request.user.is_teacher() or request.user.user_type == 'admin'
-    can_manage = assignment.can_be_managed_by(request.user)
-    
+    viewing_as_student = getattr(request, 'viewing_as_student', False)
+    is_teacher = (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student
+    can_manage = assignment.can_be_managed_by(request.user) and not viewing_as_student
+
     context = {
         'course': course,
         'unit': unit,
@@ -535,7 +536,7 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         'can_manage': can_manage,
         'guide_materials': _guide_materials_for_request_user(request.user, assignment),
     }
-    
+
     if is_teacher:
         # Teacher view: show all submissions
         # Get all enrolled students

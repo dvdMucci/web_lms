@@ -169,7 +169,7 @@
 {% endif %}
 
 <div class="row">
-    {% if user.user_type == 'student' %}
+    {% if user.user_type == 'student' or viewing_as_student %}
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">

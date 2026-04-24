@@ -88,6 +88,12 @@ class Tema(models.Model):
         verbose_name='Creado por'
     )
     is_paused = models.BooleanField(default=True, verbose_name='En Pausa')
+    scheduled_publish_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Publicar el',
+        help_text='Si se establece, el tema se publicará automáticamente en esta fecha y hora'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
     order = models.PositiveIntegerField(default=0, verbose_name='Orden')

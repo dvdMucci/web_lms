@@ -34,40 +34,111 @@ class UnitForm(forms.ModelForm):
 
 
 class TemaForm(forms.ModelForm):
+    PUBLICATION_CHOICES = [
+        ('no_publicar', 'No publicar'),
+        ('publicar_ahora', 'Publicar ahora'),
+        ('programar', 'Programar fecha de publicación'),
+    ]
+
+    publication_mode = forms.ChoiceField(
+        choices=PUBLICATION_CHOICES,
+        initial='no_publicar',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        label='Publicación',
+        required=True,
+    )
+    scheduled_publish_at = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+        label='Fecha y hora de publicación',
+    )
+
     class Meta:
         model = Tema
-        fields = ['title', 'description', 'order', 'is_paused']
+        fields = ['title', 'description', 'order']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
             'order': forms.NumberInput(attrs={'class': 'form-control'}),
-            'is_paused': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         labels = {
             'title': 'Título',
             'description': 'Descripción',
             'order': 'Orden',
-            'is_paused': 'En Pausa',
         }
         help_texts = {
             'title': 'Ingrese el título del tema',
             'description': 'Describa el contenido del tema',
             'order': 'Orden de visualización (0 = primero)',
-            'is_paused': 'Si está marcado, los estudiantes no verán este tema',
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         self.unit = kwargs.pop('unit', None)
         super().__init__(*args, **kwargs)
-        if self.instance is None or not self.instance.pk:
-            self.fields['is_paused'].initial = True
+        datetime_local_format = '%Y-%m-%dT%H:%M'
+        self.fields['scheduled_publish_at'].widget.format = datetime_local_format
+        self.fields['scheduled_publish_at'].input_formats = [
+            '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M',
+        ]
+        # Pre-fill publication_mode and scheduled_publish_at when editing
+        if self.instance and self.instance.pk:
+            if self.instance.scheduled_publish_at:
+                self.fields['publication_mode'].initial = 'programar'
+                from django.utils import timezone
+                val = timezone.localtime(self.instance.scheduled_publish_at)
+                self.fields['scheduled_publish_at'].initial = val.strftime(datetime_local_format)
+            elif not self.instance.is_paused:
+                self.fields['publication_mode'].initial = 'publicar_ahora'
+            else:
+                self.fields['publication_mode'].initial = 'no_publicar'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        publication_mode = cleaned_data.get('publication_mode')
+        scheduled_publish_at = cleaned_data.get('scheduled_publish_at')
+
+        if publication_mode == 'programar':
+            if not scheduled_publish_at:
+                raise forms.ValidationError({'scheduled_publish_at': 'Debe indicar la fecha y hora de publicación.'})
+            from django.utils import timezone
+            dt = scheduled_publish_at
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            if dt <= timezone.now():
+                raise forms.ValidationError({'scheduled_publish_at': 'La fecha de publicación debe ser en el futuro.'})
+
+        return cleaned_data
 
     def clean_order(self):
         order = self.cleaned_data.get('order')
         if order is not None and order < 0:
             raise forms.ValidationError('El orden debe ser mayor o igual a 0.')
         return order
+
+    def save(self, commit=True):
+        tema = super().save(commit=False)
+        publication_mode = self.cleaned_data.get('publication_mode')
+        scheduled_publish_at = self.cleaned_data.get('scheduled_publish_at')
+
+        if publication_mode == 'publicar_ahora':
+            tema.is_paused = False
+            tema.scheduled_publish_at = None
+        elif publication_mode == 'programar':
+            tema.is_paused = True
+            from django.utils import timezone
+            dt = scheduled_publish_at
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            tema.scheduled_publish_at = dt
+        else:  # no_publicar
+            tema.is_paused = True
+            tema.scheduled_publish_at = None
+
+        if commit:
+            tema.save()
+        return tema
 
 
 class MaterialUploadForm(forms.ModelForm):
@@ -144,6 +215,10 @@ class MaterialUploadForm(forms.ModelForm):
                 self.initial['scheduled_publish_at'] = value.strftime(datetime_local_format)
         else:
             self.fields['material_type'].initial = 'file'
+            # Material guía de tarea: por UX se publica para inscriptos por defecto.
+            if self.assignment is not None:
+                self.fields['visibility'].initial = 'enrolled'
+                self.fields['is_published'].initial = True
     
     def clean(self):
         cleaned_data = super().clean()

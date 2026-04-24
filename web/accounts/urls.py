@@ -22,4 +22,5 @@ urlpatterns = [
     path('registration-tokens/', views.registration_token_list_create, name='registration_token_list'),
     path('registration-tokens/<int:token_id>/cancel/', views.registration_token_cancel, name='registration_token_cancel'),
     path('notifications/test/', views.test_notification, name='test_notification'),
+    path('toggle-student-view/', views.toggle_student_view, name='toggle_student_view'),
 ]

@@ -394,34 +394,34 @@ def course_detail(request, course_id):
         'course': course,
     }
     
-    # For students: check enrollment status and visibility
-    if request.user.is_student():
+    viewing_as_student = getattr(request, 'viewing_as_student', False)
+
+    # For students (or teachers in student-view mode)
+    if request.user.is_student() or viewing_as_student:
         enrollment = Enrollment.objects.filter(
             student=request.user,
             course=course
-        ).first()
-        # Alumno no inscripto solo puede ver el curso si la inscripción está abierta
-        if enrollment is None and not course.is_open_for_enrollment():
+        ).first() if request.user.is_student() else None
+
+        # Alumno no inscripto solo puede ver si la inscripción está abierta
+        if not viewing_as_student and enrollment is None and not course.is_open_for_enrollment():
             messages.error(request, 'Este curso no está disponible. La inscripción no está abierta.')
             return redirect('course_list_student')
-        
+
         context['enrollment'] = enrollment
         context['is_enrolled'] = enrollment is not None
         context['is_approved'] = enrollment and enrollment.status == 'approved'
-        
-        # If approved, get additional details
+        context['can_manage'] = False
+
         if context['is_approved']:
-            # Get all approved enrollments (participants)
             participants = Enrollment.objects.filter(
                 course=course,
                 status='approved'
             ).select_related('student').order_by('student__first_name', 'student__last_name')
             context['participants'] = participants
-            
-            # Get collaborators
             context['collaborators'] = course.collaborators.all()
-    
-    # For teachers/admins: get all enrollments for management
+
+    # For teachers/admins (not in student-view mode)
     elif request.user.is_teacher() or request.user.user_type == 'admin':
         # Check if user can manage this course
         can_manage = (

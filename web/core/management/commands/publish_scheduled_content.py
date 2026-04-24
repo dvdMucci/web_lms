@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from materials.models import Material
 from assignments.models import Assignment
+from units.models import Tema
 from core.notifications import notify_material_published, notify_assignment_published
 import logging
 
@@ -31,13 +32,14 @@ class Command(BaseCommand):
 
         published_materials = 0
         published_assignments = 0
+        published_temas = 0
         emails_sent = 0
 
         # Publicar materiales programados
         materials_to_publish = Material.objects.filter(
             scheduled_publish_at__lte=now,
             is_published=False
-        ).select_related('course', 'unit', 'uploaded_by')
+        ).select_related('course', 'tema', 'uploaded_by')
         
         for material in materials_to_publish:
             try:
@@ -82,7 +84,7 @@ class Command(BaseCommand):
         assignments_to_publish = Assignment.objects.filter(
             scheduled_publish_at__lte=now,
             is_published=False
-        ).select_related('course', 'unit', 'created_by')
+        ).select_related('course', 'tema', 'created_by')
         
         for assignment in assignments_to_publish:
             try:
@@ -123,12 +125,33 @@ class Command(BaseCommand):
                     )
                 )
         
+        # Publicar temas programados
+        temas_to_publish = Tema.objects.filter(
+            scheduled_publish_at__lte=now,
+            is_paused=True
+        ).exclude(scheduled_publish_at=None)
+
+        for tema in temas_to_publish:
+            try:
+                tema.is_paused = False
+                tema.scheduled_publish_at = None
+                tema.save(update_fields=['is_paused', 'scheduled_publish_at'])
+                published_temas += 1
+                self.stdout.write(
+                    self.style.SUCCESS(f'Tema "{tema.title}" publicado exitosamente.')
+                )
+            except Exception as e:
+                logger.error(f'Error al publicar tema {tema.id}: {e}')
+                self.stdout.write(
+                    self.style.ERROR(f'Error al publicar tema "{tema.title}": {e}')
+                )
+
         # Resumen
-        total_published = published_materials + published_assignments
+        total_published = published_materials + published_assignments + published_temas
         if total_published > 0:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'\n✓ Publicados {published_materials} materiales y {published_assignments} tareas.'
+                    f'\n✓ Publicados {published_temas} temas, {published_materials} materiales y {published_assignments} tareas.'
                 )
             )
             if emails_sent > 0:

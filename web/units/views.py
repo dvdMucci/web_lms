@@ -217,13 +217,14 @@ def unit_detail(request, course_id, unit_id):
             return redirect('course_list_teacher')
     
     # Get themes for this unit
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    viewing_as_student = getattr(request, 'viewing_as_student', False)
+    if (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student:
         temas = Tema.objects.filter(unit=unit).order_by('order', 'created_at')
     else:
         temas = Tema.objects.filter(unit=unit, is_paused=False).order_by('order', 'created_at')
-    
-    # Check if user can manage
-    can_manage = unit.can_be_managed_by(request.user)
+
+    # Check if user can manage (disabled in student view mode)
+    can_manage = unit.can_be_managed_by(request.user) and not viewing_as_student
     
     context = {
         'course': course,
@@ -260,13 +261,17 @@ def tema_detail(request, course_id, unit_id, tema_id):
         return redirect('course_list_teacher')
 
     from materials.models import Material
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    viewing_as_student = getattr(request, 'viewing_as_student', False)
+    is_manager = (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student
+    can_manage = tema.can_be_managed_by(request.user) and not viewing_as_student
+
+    if is_manager:
         materials = Material.objects.filter(tema=tema, assignment__isnull=True).order_by('-uploaded_at')
     else:
         materials = Material.objects.filter(tema=tema, assignment__isnull=True, is_published=True).order_by('-uploaded_at')
 
     from assignments.models import Assignment
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if is_manager:
         assignments = Assignment.objects.filter(tema=tema).order_by('due_date', 'created_at')
     else:
         assignments = Assignment.objects.filter(
@@ -278,7 +283,7 @@ def tema_detail(request, course_id, unit_id, tema_id):
     from quizzes.models import ThemeExam
     from quizzes.utils import resolve_student_exam_access
 
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if is_manager:
         theme_exams_qs = ThemeExam.objects.filter(tema=tema).order_by('available_from', 'pk')
         theme_exam_rows = [
             {'exam': e, 'can_take': True, 'block_message': ''}
@@ -302,8 +307,6 @@ def tema_detail(request, course_id, unit_id, tema_id):
                     'block_message': (msg or ''),
                 }
             )
-
-    can_manage = unit.can_be_managed_by(request.user)
 
     context = {
         'course': course,
@@ -427,14 +430,26 @@ def tema_delete(request, course_id, unit_id, tema_id):
 
     if request.method == 'POST':
         tema_title = tema.title
+        # Eliminar archivos físicos explícitamente antes del CASCADE (resguardo adicional)
+        from materials.models import Material
+        for material in tema.materials.filter(material_type='file'):
+            if material.file:
+                try:
+                    material.file.delete(save=False)
+                except Exception:
+                    pass
         tema.delete()
         messages.success(request, f'Tema "{tema_title}" eliminado exitosamente.')
         return redirect('units:unit_detail', course_id=course_id, unit_id=unit_id)
 
+    material_count = tema.materials.count()
+    file_count = tema.materials.filter(material_type='file').count()
     context = {
         'course': course,
         'unit': unit,
         'tema': tema,
+        'material_count': material_count,
+        'file_count': file_count,
     }
     return render(request, 'units/tema_delete_confirm.html', context)
 
@@ -492,13 +507,24 @@ def material_upload(request, course_id, unit_id, tema_id):
 
             return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     else:
-        form = MaterialUploadForm(user=request.user, course=course, tema=tema)
+        # Pre-cargar configuración de publicación desde el tema padre
+        initial = {}
+        tema_publish_hint = None
+        if not tema.is_paused and not tema.scheduled_publish_at:
+            initial['is_published'] = True
+            tema_publish_hint = 'now'
+        elif tema.scheduled_publish_at:
+            val = timezone.localtime(tema.scheduled_publish_at)
+            initial['scheduled_publish_at'] = val.strftime('%Y-%m-%dT%H:%M')
+            tema_publish_hint = 'scheduled'
+        form = MaterialUploadForm(initial=initial, user=request.user, course=course, tema=tema)
 
     context = {
         'form': form,
         'course': course,
         'unit': unit,
         'tema': tema,
+        'tema_publish_hint': tema_publish_hint,
         'title': 'Subir Material',
     }
     return render(request, 'units/material_upload.html', context)
