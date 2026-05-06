@@ -129,9 +129,15 @@
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
+                                            {% if submission.original_filename|lower|slice:"-5:" == ".docx" %}
+                                            <a href="{% url 'assignments:submission_docx_viewer' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver archivo">
+                                                <i class="fas fa-file-word"></i> Ver
+                                            </a>
+                                            {% else %}
                                             <a href="{% url 'assignments:submission_view' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver archivo">
                                                 <i class="fas fa-eye"></i> Ver
                                             </a>
+                                            {% endif %}
                                             <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
                                                 <i class="fas fa-info-circle"></i>
                                             </a>
@@ -142,6 +148,56 @@
                                     </td>
                                 </tr>
                                 {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% elif collaborated_submission %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-users"></i> <strong>Entrega grupal</strong> — sos colaborador en la entrega de <strong>{{ collaborated_submission.student.get_full_name|default:collaborated_submission.student.username }}</strong>.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Versión</th>
+                                    <th>Archivo</th>
+                                    <th>Fecha de Entrega</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-primary">v{{ collaborated_submission.version }}</span></td>
+                                    <td>
+                                        {% if collaborated_submission.attachment_files.all %}
+                                        <ul class="list-unstyled mb-0 small">
+                                            {% for a in collaborated_submission.attachment_files.all %}
+                                            <li><i class="fas fa-file"></i> {{ a.original_filename|default:"archivo" }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% else %}
+                                        <i class="fas fa-file"></i> {{ collaborated_submission.original_filename|default:"Archivo" }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ collaborated_submission.submitted_at|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if collaborated_submission.status == 'submitted' %}
+                                        <span class="badge bg-info">Entregado</span>
+                                        {% elif collaborated_submission.status == 'returned' %}
+                                        <span class="badge bg-warning">Devuelto</span>
+                                        {% elif collaborated_submission.status == 'resubmitted' %}
+                                        <span class="badge bg-success">Reentregado</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Pendiente</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id collaborated_submission.id %}" class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-info-circle"></i> Ver detalles
+                                        </a>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -166,6 +222,7 @@
                         <li><i class="fas fa-check text-success"></i> Documentos de Office (doc, docx, ppt, pptx, xls, xlsx)</li>
                         <li><i class="fas fa-check text-success"></i> PDF</li>
                         <li><i class="fas fa-check text-success"></i> Archivos de Canva (PDF, PNG, JPG)</li>
+                        <li><i class="fas fa-check text-success"></i> Comprimidos y Packet Tracer (ZIP, RAR, PKT)</li>
                     </ul>
                     <p class="text-muted"><small>Podés subir varios archivos en una sola entrega. Máximo 50 MB por archivo.</small></p>
                     <a href="{% url 'assignments:submission_upload' course.id unit.id tema.id assignment.id %}" class="btn btn-success w-100">
@@ -201,6 +258,29 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: entrega subida exitosamente -->
+<div class="modal fade" id="uploadSuccessModal" tabindex="-1" aria-labelledby="uploadSuccessModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="uploadSuccessModalLabel">
+                    <i class="fas fa-check-circle"></i> ¡Entrega exitosa!
+                </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                <p class="fs-5 mb-1">Tu entrega fue subida correctamente.</p>
+                <p class="text-muted" id="uploadSuccessDetail"></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-success btn-lg px-5" id="uploadSuccessAccept">
+                    <i class="fas fa-check"></i> Aceptar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -217,5 +297,27 @@ document.querySelectorAll('.external-link-warning').forEach(link => {
         }
     });
 });
+
+(function () {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('upload_ok') === '1') {
+        var version = params.get('version');
+        var archivos = params.get('archivos');
+        var detailEl = document.getElementById('uploadSuccessDetail');
+        if (detailEl) {
+            var parts = [];
+            if (version) parts.push('Versión ' + version);
+            if (archivos && archivos !== '1') parts.push(archivos + ' archivos');
+            else if (archivos === '1') parts.push('1 archivo');
+            detailEl.textContent = parts.join(' · ');
+        }
+        var modal = new bootstrap.Modal(document.getElementById('uploadSuccessModal'));
+        modal.show();
+        history.replaceState(null, '', window.location.pathname);
+        document.getElementById('uploadSuccessAccept').addEventListener('click', function () {
+            modal.hide();
+        });
+    }
+})();
 </script>
 {% endblock %}

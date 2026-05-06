@@ -65,7 +65,8 @@ class MaterialUploadSerializer(serializers.ModelSerializer):
 
         allowed_types = [
             'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
-            'txt', 'jpg', 'jpeg', 'png', 'gif', 'mp4', 'avi', 'mov'
+            'txt', 'jpg', 'jpeg', 'png', 'gif', 'mp4', 'avi', 'mov',
+            'zip', 'rar', 'pkt'
         ]
         file_extension = value.name.split('.')[-1].lower()
         if file_extension not in allowed_types:

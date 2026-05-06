@@ -126,7 +126,7 @@ class AssignmentForm(forms.ModelForm):
 # Office, PDF, Canva (imágenes / pdf) — máx. 50 MB por archivo
 SUBMISSION_ALLOWED_EXTENSIONS = frozenset({
     'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
-    'pdf', 'png', 'jpg', 'jpeg',
+    'pdf', 'png', 'jpg', 'jpeg', 'zip', 'rar', 'pkt',
 })
 SUBMISSION_MAX_FILE_BYTES = 50 * 1024 * 1024
 
@@ -142,9 +142,9 @@ def _validate_submission_upload_file(upload):
     if ext not in SUBMISSION_ALLOWED_EXTENSIONS:
         raise forms.ValidationError(
             f'«{upload.name}»: tipo no permitido. Use Office (.doc, .docx, .ppt, .pptx, .xls, .xlsx), '
-            '.pdf o imágenes/PDF de Canva (.pdf, .png, .jpg, .jpeg).'
+            '.pdf, imágenes/PDF de Canva (.pdf, .png, .jpg, .jpeg), .zip, .rar o .pkt (Cisco Packet Tracer).'
         )
-    dangerous = {'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', 'zip', 'rar', '7z'}
+    dangerous = {'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', '7z'}
     if ext in dangerous:
         raise forms.ValidationError(f'«{upload.name}»: tipo de archivo no permitido por seguridad.')
     return upload
@@ -218,63 +218,48 @@ class FeedbackForm(forms.Form):
 
 class CollaboratorForm(forms.Form):
     """Form to add collaborators to a submission (for group work)"""
-    collaborator_username = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre de usuario del colaborador'}),
-        label='Nombre de Usuario del Colaborador',
-        max_length=150,
-        help_text='Ingrese el nombre de usuario del estudiante que desea agregar como colaborador'
+    from django.contrib.auth import get_user_model as _get_user_model
+    collaborator = forms.ModelChoiceField(
+        queryset=_get_user_model().objects.none(),
+        label='Compañero',
+        empty_label='— Seleccioná un compañero —',
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
-    
+
     def __init__(self, *args, **kwargs):
         self.submission = kwargs.pop('submission', None)
         self.current_student = kwargs.pop('current_student', None)
         super().__init__(*args, **kwargs)
-    
-    def clean_collaborator_username(self):
-        username = self.cleaned_data.get('collaborator_username')
-        
-        if not username:
-            return username
-        
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
-        try:
-            collaborator = User.objects.get(username=username)
-        except User.DoesNotExist:
-            raise forms.ValidationError('El usuario no existe.')
-        
-        if not collaborator.is_student():
-            raise forms.ValidationError('Solo se pueden agregar estudiantes como colaboradores.')
-        
-        if self.submission and self.current_student:
-            # Check if collaborator is enrolled in the course
-            from courses.models import Enrollment
-            enrollment = Enrollment.objects.filter(
-                student=collaborator,
-                course=self.submission.assignment.course,
-                status='approved'
-            ).first()
-            
-            if not enrollment:
-                raise forms.ValidationError('El colaborador debe estar inscrito y aprobado en el curso.')
-            
-            # Check if already a collaborator
-            if AssignmentCollaborator.objects.filter(
+
+        if self.submission:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            course = self.submission.assignment.course
+            enrolled_ids = Enrollment.objects.filter(
+                course=course,
+                status='approved',
+            ).values_list('student_id', flat=True)
+            already_ids = AssignmentCollaborator.objects.filter(
                 submission=self.submission,
-                student=collaborator
-            ).exists():
-                raise forms.ValidationError('Este estudiante ya es colaborador de esta entrega.')
-            
-            # Check if trying to add themselves
-            if collaborator == self.current_student:
-                raise forms.ValidationError('No puedes agregarte a ti mismo como colaborador.')
-            
-            # Check if collaborator is already the main student
-            if collaborator == self.submission.student:
-                raise forms.ValidationError('El estudiante principal no puede ser colaborador.')
-        
-        return username
+            ).values_list('student_id', flat=True)
+            qs = User.objects.filter(
+                id__in=enrolled_ids,
+                user_type='student',
+            ).exclude(
+                id__in=already_ids,
+            ).exclude(
+                id=self.submission.student_id,
+            ).order_by('last_name', 'first_name')
+            self.fields['collaborator'].queryset = qs
+            self.fields['collaborator'].label_from_instance = (
+                lambda u: u.get_full_name() or u.username
+            )
+
+    def clean_collaborator(self):
+        collaborator = self.cleaned_data.get('collaborator')
+        if collaborator and not collaborator.is_student():
+            raise forms.ValidationError('Solo se pueden agregar estudiantes como colaboradores.')
+        return collaborator
 
 
 class CommentForm(forms.ModelForm):

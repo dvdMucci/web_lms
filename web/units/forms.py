@@ -198,6 +198,10 @@ class MaterialUploadForm(forms.ModelForm):
         self.tema = kwargs.pop('tema', None)
         self.assignment = kwargs.pop('assignment', None)
         super().__init__(*args, **kwargs)
+        self.fields['file'].widget.attrs['accept'] = (
+            '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.gif,'
+            '.mp4,.avi,.mov,.zip,.rar,.7z,.pkt'
+        )
         datetime_local_format = '%Y-%m-%dT%H:%M'
         self.fields['scheduled_publish_at'].widget.format = datetime_local_format
         # Aceptar el formato de <input type="datetime-local">: YYYY-MM-DDTHH:mm
@@ -287,7 +291,7 @@ class MaterialUploadForm(forms.ModelForm):
         allowed_extensions = [
             'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
             'txt', 'jpg', 'jpeg', 'png', 'gif', 'mp4', 'avi', 'mov',
-            'zip', 'rar', '7z'
+            'zip', 'rar', '7z', 'pkt'
         ]
         
         file_extension = os.path.splitext(file.name)[1].lstrip('.').lower()
