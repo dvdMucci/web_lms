@@ -190,3 +190,196 @@
     background-color: #7f1d1d;
 }
 
+/* =====================================================
+   Fixes adicionales de legibilidad en modo oscuro
+   ===================================================== */
+
+/* bg-white → fondo oscuro */
+.dark-mode .bg-white {
+    background-color: var(--dm-bg-secondary) !important;
+    color: var(--dm-text) !important;
+}
+
+/* badge bg-white (ej: contador de foro) */
+.dark-mode .badge.bg-white {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+}
+
+/* bg-warning y bg-info: asegurar que el texto negro sea legible sobre fondo claro/amarillo/cyan.
+   Bootstrap no fuerza color en bg-*, así que en dark mode el body-color (#e0e0e0) se hereda
+   y queda con bajo contraste sobre amarillo o cyan. */
+.dark-mode .badge.bg-warning,
+.dark-mode .card-header.bg-warning,
+.dark-mode .modal-header.bg-warning,
+.dark-mode .bg-warning.text-dark {
+    color: #000 !important;
+}
+.dark-mode .badge.bg-info {
+    color: #000 !important;
+}
+
+/* Colores de texto utilitarios: en fondos oscuros, las variantes base de Bootstrap tienen
+   bajo contraste. Se reemplazan por versiones más brillantes. */
+.dark-mode .text-primary {
+    color: #5a8dee !important;
+}
+.dark-mode .text-success {
+    color: #6fd49a !important;
+}
+.dark-mode .text-info {
+    color: #7ecff5 !important;
+}
+.dark-mode .text-secondary {
+    color: #a0a0b0 !important;
+}
+.dark-mode .text-warning {
+    color: #ffc107 !important;  /* amarillo ya contrasta bien en oscuro */
+}
+
+/* Filas table-success / table-danger (ej: tabla de revisión de examen) */
+.dark-mode tr.table-success > td,
+.dark-mode tr.table-success > th {
+    background-color: rgba(25, 135, 84, 0.18) !important;
+    color: #6fd49a !important;
+    border-color: rgba(25, 135, 84, 0.3) !important;
+}
+.dark-mode tr.table-danger > td,
+.dark-mode tr.table-danger > th {
+    background-color: rgba(220, 53, 69, 0.18) !important;
+    color: #f57e7e !important;
+    border-color: rgba(220, 53, 69, 0.3) !important;
+}
+
+/* Fila table-active (fila activa/seleccionada) */
+.dark-mode tr.table-active > td,
+.dark-mode tr.table-active > th {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+}
+
+/* table-light en thead */
+.dark-mode thead.table-light > tr > th,
+.dark-mode thead.table-light > tr > td {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+    border-color: var(--dm-border) !important;
+}
+
+/* btn-outline-dark → invisible en fondo oscuro */
+.dark-mode .btn-outline-dark {
+    color: var(--dm-text) !important;
+    border-color: var(--dm-text-muted) !important;
+}
+.dark-mode .btn-outline-dark:hover,
+.dark-mode .btn-outline-dark:focus,
+.dark-mode .btn-outline-dark:active {
+    background-color: var(--dm-bg-card) !important;
+    color: #fff !important;
+    border-color: var(--dm-text) !important;
+}
+
+/* alert-secondary */
+.dark-mode .alert-secondary {
+    background-color: #1e1e35;
+    border-color: var(--dm-border);
+    color: var(--dm-text-muted);
+}
+
+/* alert-dark */
+.dark-mode .alert-dark {
+    background-color: #1a1a2e;
+    border-color: #3a3a5a;
+    color: var(--dm-text);
+}
+
+/* Paginación */
+.dark-mode .page-link {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .page-link:hover {
+    background-color: var(--dm-bg-card);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .page-item.active .page-link {
+    background-color: #0f3460;
+    border-color: #5a8dee;
+    color: #fff;
+}
+.dark-mode .page-item.disabled .page-link {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+    color: var(--dm-text-muted);
+}
+
+/* Barra de progreso — el track (.progress) queda gris claro sin override */
+.dark-mode .progress {
+    background-color: #2a2a4a;
+}
+
+/* Elementos con card-header bg-info que no son alertas (conservan fondo cyan) */
+.dark-mode .card-header.bg-info {
+    background-color: #0a7fa3 !important;
+    color: #fff !important;
+}
+
+/* Cuadros de comentarios / respuestas en submission_detail (bg-white en modo claro) */
+.dark-mode .comment,
+.dark-mode .reply {
+    background-color: var(--dm-bg-secondary) !important;
+    color: var(--dm-text) !important;
+    border-color: var(--dm-border) !important;
+}
+
+/* input-group-text (etiquetas adjuntas a inputs) */
+.dark-mode .input-group-text {
+    background-color: var(--dm-bg-card);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+
+/* Tabs de Bootstrap (nav-tabs) */
+.dark-mode .nav-tabs {
+    border-color: var(--dm-border);
+}
+.dark-mode .nav-tabs .nav-link {
+    color: var(--dm-text-muted);
+}
+.dark-mode .nav-tabs .nav-link:hover {
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .nav-tabs .nav-link.active {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border) var(--dm-border) var(--dm-bg-secondary);
+    color: var(--dm-text);
+}
+
+/* Close/X button en modales y alertas */
+.dark-mode .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Tooltips Bootstrap */
+.dark-mode .tooltip-inner {
+    background-color: var(--dm-bg-card);
+    color: var(--dm-text);
+}
+
+/* Popover */
+.dark-mode .popover {
+    background-color: var(--dm-bg-secondary);
+    border-color: var(--dm-border);
+}
+.dark-mode .popover-header {
+    background-color: var(--dm-bg-card);
+    border-color: var(--dm-border);
+    color: var(--dm-text);
+}
+.dark-mode .popover-body {
+    color: var(--dm-text);
+}
+
