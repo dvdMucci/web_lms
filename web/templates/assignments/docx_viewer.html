@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Ver: {{ filename }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<style>
+  #docx-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bs-body-bg, #fff);
+    border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+    padding: .75rem 1rem;
+  }
+  #docx-output {
+    max-width: 860px;
+    margin: 1.5rem auto;
+    padding: 2rem 2.5rem;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: .375rem;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1rem;
+    line-height: 1.75;
+    min-height: 300px;
+    color: #212529;
+  }
+  #docx-output h1, #docx-output h2, #docx-output h3,
+  #docx-output h4, #docx-output h5, #docx-output h6 {
+    font-family: inherit;
+    margin-top: 1.2em;
+  }
+  #docx-output img { max-width: 100%; height: auto; }
+  #docx-output table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+  #docx-output td, #docx-output th { border: 1px solid #ccc; padding: .4rem .6rem; }
+  .dark-mode #docx-output {
+    background: #1e1e2e;
+    border-color: #3a3a5a;
+    color: #ddd;
+  }
+  .dark-mode #docx-toolbar {
+    border-bottom-color: #3a3a5a;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="docx-toolbar" class="d-flex align-items-center gap-2 flex-wrap">
+  <button onclick="history.back()" class="btn btn-outline-secondary btn-sm">
+    <i class="fas fa-arrow-left"></i> Volver
+  </button>
+  <span class="fw-semibold text-truncate flex-grow-1" style="max-width:60%;">
+    <i class="fas fa-file-word text-primary"></i> {{ filename }}
+  </span>
+  <a href="{{ download_url }}" class="btn btn-outline-primary btn-sm ms-auto">
+    <i class="fas fa-download"></i> Descargar
+  </a>
+</div>
+
+<div class="container-fluid px-3 pb-4">
+  {% if not is_docx %}
+  <div class="alert alert-warning mt-3" style="max-width:860px;margin-left:auto;margin-right:auto;">
+    <i class="fas fa-exclamation-triangle"></i>
+    El archivo <strong>{{ filename }}</strong> no es un <code>.docx</code> y no puede previsualizarse en el navegador.
+    <a href="{{ download_url }}" class="alert-link">Descargarlo</a>
+  </div>
+
+  {% else %}
+  <div id="loading-indicator" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando…</span></div>
+    <p class="mt-2 text-muted">Cargando documento…</p>
+  </div>
+
+  <div id="error-box" class="alert alert-danger d-none mt-3" style="max-width:860px;margin-left:auto;margin-right:auto;">
+    <i class="fas fa-times-circle"></i>
+    <span id="error-text">No se pudo cargar el documento.</span>
+    <a href="{{ download_url }}" class="alert-link ms-2">Descargar en cambio</a>
+  </div>
+
+  <div id="warn-box" class="alert alert-warning d-none mt-2" style="max-width:860px;margin-left:auto;margin-right:auto;font-size:.85rem;"></div>
+
+  <div id="docx-output" class="d-none"></div>
+
+  <script>
+  (function () {
+    var fileUrl = "{{ file_url|escapejs }}";
+    var output  = document.getElementById('docx-output');
+    var loading = document.getElementById('loading-indicator');
+    var errBox  = document.getElementById('error-box');
+    var errTxt  = document.getElementById('error-text');
+    var warnBox = document.getElementById('warn-box');
+
+    fetch(fileUrl, { credentials: 'same-origin' })
+      .then(function (resp) {
+        if (!resp.ok) { throw new Error('Error HTTP ' + resp.status); }
+        return resp.arrayBuffer();
+      })
+      .then(function (buf) {
+        return mammoth.convertToHtml({ arrayBuffer: buf });
+      })
+      .then(function (result) {
+        loading.classList.add('d-none');
+        output.innerHTML = result.value;
+        output.classList.remove('d-none');
+        if (result.messages && result.messages.length) {
+          warnBox.textContent = 'Advertencias de conversión: ' +
+            result.messages.map(function (m) { return m.message; }).join('; ');
+          warnBox.classList.remove('d-none');
+        }
+      })
+      .catch(function (err) {
+        loading.classList.add('d-none');
+        errTxt.textContent = 'No se pudo cargar el documento: ' + err.message;
+        errBox.classList.remove('d-none');
+      });
+  })();
+  </script>
+  {% endif %}
+</div>
+{% endblock %}

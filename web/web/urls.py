@@ -2,11 +2,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic.base import RedirectView
+from django.templatetags.static import static as static_file
 from accounts.views import dashboard
 from courses import views as course_views
 from forums import views as forum_views
 
 urlpatterns = [
+    path('favicon.ico', RedirectView.as_view(url=static_file('img/favicon.ico'), permanent=True)),
     path('admin/', admin.site.urls),
     path('', dashboard, name='dashboard'), # Redirección de la raíz al dashboard
     path('dashboard/', dashboard, name='dashboard'),

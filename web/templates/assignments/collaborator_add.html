@@ -12,21 +12,18 @@
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i> 
-                        <strong>Nota:</strong> Solo puedes agregar estudiantes que estén inscritos y aprobados en el curso.
+                        <i class="fas fa-info-circle"></i>
+                        Solo aparecen los alumnos inscriptos y aprobados en el curso que aún no son colaboradores de esta entrega.
                     </div>
 
                     <form method="post">
                         {% csrf_token %}
 
                         <div class="mb-3">
-                            <label for="{{ form.collaborator_username.id_for_label }}" class="form-label">{{ form.collaborator_username.label }}</label>
-                            {{ form.collaborator_username }}
-                            {% if form.collaborator_username.errors %}
-                                <div class="text-danger">{{ form.collaborator_username.errors }}</div>
-                            {% endif %}
-                            {% if form.collaborator_username.help_text %}
-                                <small class="form-text text-muted">{{ form.collaborator_username.help_text }}</small>
+                            <label for="{{ form.collaborator.id_for_label }}" class="form-label fw-semibold">{{ form.collaborator.label }}</label>
+                            {{ form.collaborator }}
+                            {% if form.collaborator.errors %}
+                                <div class="text-danger mt-1">{{ form.collaborator.errors }}</div>
                             {% endif %}
                         </div>
 

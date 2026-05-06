@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, transaction
 from django.db.models import Q
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -499,6 +499,30 @@ def exam_template_download(request, course_id, unit_id, tema_id, exam_id):
 
 
 @login_required
+@require_http_methods(['POST'])
+def record_focus_violation(request, course_id, unit_id, tema_id, exam_id):
+    if not request.user.is_student():
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    course, unit, tema, exam = _get_exam(course_id, unit_id, tema_id, exam_id)
+    attempt = get_object_or_404(ExamAttempt, exam=exam, student=request.user)
+    if attempt.is_submitted():
+        return JsonResponse({'already_submitted': True})
+    violation_type = request.POST.get('type', 'visibility')
+    log = list(attempt.focus_violation_log or [])
+    log.append({'ts': timezone.now().isoformat(), 'type': violation_type})
+    attempt.focus_violations = len(log)
+    attempt.focus_violation_log = log
+    attempt.save(update_fields=['focus_violations', 'focus_violation_log'])
+    limit = exam.max_focus_violations
+    should_force = limit > 0 and attempt.focus_violations >= limit
+    return JsonResponse({
+        'violations': attempt.focus_violations,
+        'limit': limit,
+        'should_force_submit': should_force,
+    })
+
+
+@login_required
 @require_http_methods(['GET', 'POST'])
 def exam_take(request, course_id, unit_id, tema_id, exam_id):
     course, unit, tema, exam = _get_exam(course_id, unit_id, tema_id, exam_id)
@@ -672,22 +696,25 @@ def exam_take(request, course_id, unit_id, tema_id, exam_id):
                 current_step = max(0, min(n - 1, current_step))
             _save_answer_for_step(current_step)
 
-            first_missing_idx = None
-            for idx, dq in enumerate(display_questions):
-                aa = ExamAttemptAnswer.objects.filter(
-                    attempt=attempt,
-                    question_id=dq['question'].pk,
-                ).first()
-                if not aa or (not aa.selected_option_id and not aa.dont_know):
-                    first_missing_idx = idx
-                    break
+            force_submit = request.POST.get('force_submit') == '1'
 
-            if first_missing_idx is not None:
-                messages.error(
-                    request,
-                    'Debés responder todas las preguntas antes de enviar.',
-                )
-                return _redirect_take(first_missing_idx)
+            if not force_submit:
+                first_missing_idx = None
+                for idx, dq in enumerate(display_questions):
+                    aa = ExamAttemptAnswer.objects.filter(
+                        attempt=attempt,
+                        question_id=dq['question'].pk,
+                    ).first()
+                    if not aa or (not aa.selected_option_id and not aa.dont_know):
+                        first_missing_idx = idx
+                        break
+
+                if first_missing_idx is not None:
+                    messages.error(
+                        request,
+                        'Debés responder todas las preguntas antes de enviar.',
+                    )
+                    return _redirect_take(first_missing_idx)
 
             with transaction.atomic():
                 answers = list(
@@ -824,6 +851,14 @@ def exam_attempt_detail(request, course_id, unit_id, tema_id, exam_id, attempt_i
         )
 
     review_rows = build_exam_attempt_review_rows(attempt, exam)
+    delta = attempt.submitted_at - attempt.started_at
+    total_seconds = int(delta.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        duration_display = f'{hours}h {minutes:02d}m {seconds:02d}s'
+    else:
+        duration_display = f'{minutes}m {seconds:02d}s'
     return render(
         request,
         'quizzes/exam_attempt_detail.html',
@@ -835,5 +870,6 @@ def exam_attempt_detail(request, course_id, unit_id, tema_id, exam_id, attempt_i
             'attempt': attempt,
             'review_rows': review_rows,
             'is_teacher_view': True,
+            'duration_display': duration_display,
         },
     )

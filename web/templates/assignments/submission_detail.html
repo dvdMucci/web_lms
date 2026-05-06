@@ -61,9 +61,15 @@
                             <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2 px-0">
                                 <span><i class="fas fa-paperclip text-muted"></i> {{ a.original_filename|default:"archivo" }}</span>
                                 <span class="btn-group btn-group-sm">
+                                    {% if a.original_filename|lower|slice:"-5:" == ".docx" %}
+                                    <a href="{% url 'assignments:submission_attachment_docx_viewer' course.id unit.id tema.id assignment.id submission.id a.id %}" class="btn btn-outline-primary" target="_blank" rel="noopener">
+                                        <i class="fas fa-file-word"></i> Ver
+                                    </a>
+                                    {% else %}
                                     <a href="{% url 'assignments:submission_attachment_view' course.id unit.id tema.id assignment.id submission.id a.id %}" class="btn btn-outline-primary" target="_blank" rel="noopener">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
+                                    {% endif %}
                                     <a href="{% url 'assignments:submission_attachment_download' course.id unit.id tema.id assignment.id submission.id a.id %}" class="btn btn-outline-secondary">
                                         <i class="fas fa-download"></i>
                                     </a>
@@ -74,9 +80,15 @@
                         {% else %}
                         <p>{{ submission.original_filename|default:"Archivo" }}</p>
                         <div class="btn-group" role="group">
+                            {% if submission.original_filename|lower|slice:"-5:" == ".docx" %}
+                            <a href="{% url 'assignments:submission_docx_viewer' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-primary" target="_blank">
+                                <i class="fas fa-file-word"></i> Ver
+                            </a>
+                            {% else %}
                             <a href="{% url 'assignments:submission_view' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-primary" target="_blank">
                                 <i class="fas fa-eye"></i> Ver
                             </a>
+                            {% endif %}
                             <a href="{% url 'assignments:submission_download' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-outline-primary">
                                 <i class="fas fa-download"></i> Descargar
                             </a>
@@ -108,7 +120,7 @@
                                 <tr {% if version.id == submission.id %}class="table-active"{% endif %}>
                                     <td>
                                         <span class="badge bg-primary">v{{ version.version }}</span>
-                                        {% if version.id == submission.id %}
+                                        {% if forloop.first %}
                                         <span class="badge bg-success">Actual</span>
                                         {% endif %}
                                     </td>
@@ -130,7 +142,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id version.id %}" class="btn btn-sm btn-outline-primary">
+                                        <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id version.id %}?v=1" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-eye"></i> Ver
                                         </a>
                                         <a href="{% url 'assignments:submission_download' course.id unit.id tema.id assignment.id version.id %}" class="btn btn-sm btn-outline-info">
@@ -165,19 +177,36 @@
             </div>
             {% endif %}
 
-            {% if collaborators %}
+            {% if assignment.allow_group_work %}
             <div class="card shadow">
-                <div class="card-header">
-                    <h5><i class="fas fa-users"></i> Colaboradores</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Colaboradores</h5>
+                    {% if can_manage_collaborators %}
+                    <a href="{% url 'assignments:collaborator_add' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-user-plus"></i> Agregar
+                    </a>
+                    {% endif %}
                 </div>
                 <div class="card-body">
-                    <ul class="list-group">
+                    {% if collaborators %}
+                    <ul class="list-group list-group-flush">
                         {% for collaborator in collaborators %}
-                        <li class="list-group-item">
-                            <i class="fas fa-user"></i> {{ collaborator.student.get_full_name|default:collaborator.student.username }}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="fas fa-user text-muted me-1"></i> {{ collaborator.student.get_full_name|default:collaborator.student.username }}</span>
+                            {% if can_manage_collaborators %}
+                            <form method="post" action="{% url 'assignments:collaborator_remove' course.id unit.id tema.id assignment.id submission.id collaborator.id %}" class="d-inline" onsubmit="return confirm('¿Quitar a este colaborador?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Quitar colaborador">
+                                    <i class="fas fa-user-minus"></i>
+                                </button>
+                            </form>
+                            {% endif %}
                         </li>
                         {% endfor %}
                     </ul>
+                    {% else %}
+                    <p class="text-muted mb-0 small">Sin colaboradores agregados.</p>
+                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -283,18 +312,6 @@
             </div>
             {% endif %}
 
-            {% if assignment.allow_group_work and submission.student == user %}
-            <div class="card shadow">
-                <div class="card-header">
-                    <h5><i class="fas fa-user-plus"></i> Agregar Colaborador</h5>
-                </div>
-                <div class="card-body">
-                    <a href="{% url 'assignments:collaborator_add' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-info w-100">
-                        <i class="fas fa-user-plus"></i> Agregar Colaborador
-                    </a>
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
 </div>

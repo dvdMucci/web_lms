@@ -7,6 +7,7 @@ from django.db.models import Q, Count, Exists, OuterRef
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponse, Http404
+from django.urls import reverse
 from datetime import datetime, time
 import json
 import mimetypes
@@ -556,17 +557,28 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
                 assignment=assignment,
                 student=student
             ).prefetch_related('attachment_files').order_by('-version').first()
-            
+
+            is_collaborator = False
+            if latest_submission is None and assignment.allow_group_work:
+                collab = AssignmentCollaborator.objects.filter(
+                    submission__assignment=assignment,
+                    student=student,
+                ).select_related('submission').order_by('-submission__version').first()
+                if collab:
+                    latest_submission = collab.submission
+                    is_collaborator = True
+
             has_submitted = latest_submission is not None
             if has_submitted:
                 submitted_count += 1
             else:
                 pending_count += 1
-            
+
             students_with_submissions.append({
                 'student': student,
                 'has_submitted': has_submitted,
                 'latest_submission': latest_submission,
+                'is_collaborator': is_collaborator,
                 'submission_count': AssignmentSubmission.objects.filter(
                     assignment=assignment,
                     student=student
@@ -579,27 +591,36 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         context['total_students'] = len(students_with_submissions)
         return render(request, 'assignments/assignment_detail_teacher.html', context)
     else:
-        # Student view: show only their submissions
+        # Student view: show their own submissions + submissions they collaborated on
         submissions = AssignmentSubmission.objects.filter(
             assignment=assignment,
             student=request.user
         ).prefetch_related('attachment_files').order_by('-version')
-        
+
+        collaborated_submission = None
+        if not submissions.exists() and assignment.allow_group_work:
+            collab = AssignmentCollaborator.objects.filter(
+                submission__assignment=assignment,
+                student=request.user,
+            ).select_related('submission').order_by('-submission__version').first()
+            if collab:
+                collaborated_submission = collab.submission
+
         # Check if can submit
         can_submit = assignment.is_submission_allowed()
         is_late = assignment.is_late_submission()
-        
-        # Check if assignment allows group work
+
+        # Get collaborators for the latest submission shown
         if assignment.allow_group_work:
-            # Get latest submission to check collaborators
-            latest_submission = submissions.first()
-            if latest_submission:
+            ref_submission = submissions.first() or collaborated_submission
+            if ref_submission:
                 collaborators = AssignmentCollaborator.objects.filter(
-                    submission=latest_submission
+                    submission=ref_submission
                 ).select_related('student')
                 context['collaborators'] = collaborators
-        
+
         context['submissions'] = submissions
+        context['collaborated_submission'] = collaborated_submission
         context['can_submit'] = can_submit
         context['is_late'] = is_late
         return render(request, 'assignments/assignment_detail_student.html', context)
@@ -669,17 +690,22 @@ def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
                             comment=initial_comment,
                         )
                 n = len(file_list)
-                msg_extra = f' ({n} archivos)' if n > 1 else ''
-                messages.success(
-                    request,
-                    f'Entrega subida exitosamente (Versión {submission.version}){msg_extra}.',
-                )
                 log_user_activity(
                     action=UserActivityLog.ACTION_SUBMISSION_UPLOADED,
                     actor=request.user,
                     details=f'Entrega subida en tarea "{assignment.title}" (v{submission.version}, {n} archivo(s))',
                 )
-                return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
+                from django.urls import reverse
+                detail_url = reverse(
+                    'assignments:assignment_detail',
+                    kwargs={
+                        'course_id': course_id,
+                        'unit_id': unit_id,
+                        'tema_id': tema_id,
+                        'assignment_id': assignment_id,
+                    }
+                )
+                return redirect(f'{detail_url}?upload_ok=1&version={submission.version}&archivos={n}')
             except ValidationError as e:
                 messages.error(request, str(e))
     else:
@@ -722,11 +748,27 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
-    # Get all versions of this submission
+    # Get all versions of this submission (latest first)
     all_versions = AssignmentSubmission.objects.filter(
         assignment=assignment,
         student=submission.student
     ).prefetch_related('attachment_files').order_by('-version')
+
+    # Redirect to the latest version unless explicitly browsing history
+    latest_submission = all_versions.first()
+    if latest_submission and submission.id != latest_submission.id and not request.GET.get('v'):
+        from django.urls import reverse
+        latest_url = reverse(
+            'assignments:submission_detail',
+            kwargs={
+                'course_id': course_id,
+                'unit_id': unit_id,
+                'tema_id': tema_id,
+                'assignment_id': assignment_id,
+                'submission_id': latest_submission.id,
+            }
+        )
+        return redirect(latest_url)
     
     # Get collaborators if group work
     collaborators = None
@@ -771,6 +813,13 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
     else:
         comment_form = CommentForm(submission=submission, user=request.user) if can_comment else None
     
+    can_manage_collaborators = (
+        assignment.allow_group_work and
+        (request.user == submission.student or
+         request.user.is_teacher() or
+         request.user.user_type == 'admin')
+    )
+
     context = {
         'course': course,
         'unit': unit,
@@ -780,6 +829,7 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
         'all_versions': all_versions,
         'collaborators': collaborators,
         'can_manage': can_manage,
+        'can_manage_collaborators': can_manage_collaborators,
         'comments': comments,
         'can_comment': can_comment,
         'comment_form': comment_form,
@@ -854,28 +904,23 @@ def collaborator_add(request, course_id, unit_id, tema_id, assignment_id, submis
         messages.error(request, 'Esta tarea no permite trabajo en grupo.')
         return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     
-    # Check if user is the student who submitted
-    if request.user != submission.student:
+    # Check if user is the student who submitted, or a teacher/admin
+    is_teacher_or_admin = request.user.is_teacher() or request.user.user_type == 'admin'
+    if request.user != submission.student and not is_teacher_or_admin:
         messages.error(request, 'Solo el estudiante que entregó puede agregar colaboradores.')
         return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
-    
+
     if request.method == 'POST':
-        form = CollaboratorForm(request.POST, submission=submission, current_student=request.user)
+        form = CollaboratorForm(request.POST, submission=submission, current_student=submission.student)
         if form.is_valid():
-            username = form.cleaned_data['collaborator_username']
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            collaborator = User.objects.get(username=username)
-            
-            AssignmentCollaborator.objects.create(
-                submission=submission,
-                student=collaborator
-            )
-            messages.success(request, f'Colaborador "{username}" agregado exitosamente.')
+            collaborator = form.cleaned_data['collaborator']
+            AssignmentCollaborator.objects.create(submission=submission, student=collaborator)
+            name = collaborator.get_full_name() or collaborator.username
+            messages.success(request, f'Colaborador "{name}" agregado exitosamente.')
             return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     else:
-        form = CollaboratorForm(submission=submission, current_student=request.user)
-    
+        form = CollaboratorForm(submission=submission, current_student=submission.student)
+
     context = {
         'form': form,
         'course': course,
@@ -885,6 +930,27 @@ def collaborator_add(request, course_id, unit_id, tema_id, assignment_id, submis
         'submission': submission,
     }
     return render(request, 'assignments/collaborator_add.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def collaborator_remove(request, course_id, unit_id, tema_id, assignment_id, submission_id, collaborator_id):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
+    collaborator = get_object_or_404(AssignmentCollaborator, id=collaborator_id, submission=submission)
+
+    is_teacher_or_admin = request.user.is_teacher() or request.user.user_type == 'admin'
+    if request.user != submission.student and not is_teacher_or_admin:
+        messages.error(request, 'No tenés permiso para quitar colaboradores.')
+        return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
+
+    name = collaborator.student.get_full_name() or collaborator.student.username
+    collaborator.delete()
+    messages.success(request, f'Colaborador "{name}" quitado de la entrega.')
+    return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
 
 
 def _submission_serve_file(request, course_id, unit_id, tema_id, assignment_id, submission_id, attachment_id, *, inline):
@@ -977,6 +1043,48 @@ def submission_attachment_download(request, course_id, unit_id, tema_id, assignm
         attachment_id,
         inline=False,
     )
+
+
+@login_required
+def submission_docx_viewer(request, course_id, unit_id, tema_id, assignment_id, submission_id, attachment_id=None):
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    submission = get_object_or_404(AssignmentSubmission, id=submission_id, assignment=assignment)
+
+    if request.user.is_student():
+        if submission.student != request.user:
+            messages.error(request, 'No tienes permiso para ver esta entrega.')
+            return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
+    elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
+        messages.error(request, 'No tienes permiso para ver esta entrega.')
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
+
+    _, filename = _resolve_submission_file_field(submission, attachment_id)
+    if not filename:
+        raise Http404('Archivo no encontrado.')
+
+    kwargs = dict(course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
+    if attachment_id is not None:
+        kwargs['attachment_id'] = attachment_id
+        file_url = reverse('assignments:submission_attachment_view', kwargs=kwargs)
+        download_url = reverse('assignments:submission_attachment_download', kwargs=kwargs)
+    else:
+        file_url = reverse('assignments:submission_view', kwargs=kwargs)
+        download_url = reverse('assignments:submission_download', kwargs=kwargs)
+
+    return render(request, 'assignments/docx_viewer.html', {
+        'course': course,
+        'unit': unit,
+        'tema': tema,
+        'assignment': assignment,
+        'submission': submission,
+        'filename': filename,
+        'file_url': file_url,
+        'download_url': download_url,
+        'is_docx': filename.lower().endswith('.docx'),
+    })
 
 
 def _assignment_material_redirect_kwargs(course_id, unit_id, tema_id, assignment_id):

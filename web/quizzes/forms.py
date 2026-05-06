@@ -16,6 +16,7 @@ class ThemeExamForm(forms.ModelForm):
             'available_from',
             'available_until',
             'attendance_date',
+            'max_focus_violations',
         ]
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
@@ -33,6 +34,7 @@ class ThemeExamForm(forms.ModelForm):
                 'class': 'form-control',
                 'type': 'date',
             }),
+            'max_focus_violations': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
         }
         labels = {
             'title': 'Título del examen',
@@ -41,6 +43,7 @@ class ThemeExamForm(forms.ModelForm):
             'available_from': 'Disponible desde',
             'available_until': 'Disponible hasta',
             'attendance_date': 'Fecha de asistencia requerida',
+            'max_focus_violations': 'Límite de salidas de pantalla (0 = sin límite)',
         }
 
     def __init__(self, *args, **kwargs):

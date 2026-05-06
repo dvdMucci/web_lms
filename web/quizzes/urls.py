@@ -66,6 +66,11 @@ urlpatterns = [
         name='exam_take',
     ),
     path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/violation/',
+        views.record_focus_violation,
+        name='exam_focus_violation',
+    ),
+    path(
         'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/resultado/',
         views.exam_result,
         name='exam_result',

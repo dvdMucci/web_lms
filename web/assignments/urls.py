@@ -41,9 +41,20 @@ urlpatterns = [
         name='submission_attachment_download',
     ),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/view/', views.submission_view, name='submission_view'),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/docx-viewer/',
+        views.submission_docx_viewer,
+        name='submission_docx_viewer',
+    ),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/attachment/<int:attachment_id>/docx-viewer/',
+        views.submission_docx_viewer,
+        name='submission_attachment_docx_viewer',
+    ),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/feedback/', views.submission_feedback, name='submission_feedback'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/download/', views.submission_download, name='submission_download'),
     
     # Collaborators
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/collaborator/add/', views.collaborator_add, name='collaborator_add'),
+    path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/collaborator/<int:collaborator_id>/remove/', views.collaborator_remove, name='collaborator_remove'),
 ]

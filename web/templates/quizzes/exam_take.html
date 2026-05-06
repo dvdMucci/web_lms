@@ -11,7 +11,16 @@
 <div class="mb-3">
     <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
         <span>Pregunta {{ step|add:1 }} de {{ total_questions }}</span>
-        <span>{{ answered_count }} / {{ total_questions }} con respuesta</span>
+        <div class="d-flex align-items-center gap-2">
+            <span>{{ answered_count }} / {{ total_questions }} con respuesta</span>
+            {% if attempt.exam.max_focus_violations > 0 %}
+            <span id="violationBadge" class="badge text-dark ms-1 {% if attempt.focus_violations == 0 %}d-none{% elif attempt.focus_violations >= attempt.exam.max_focus_violations|add:"-1" %}bg-danger text-white{% else %}bg-warning{% endif %}">
+                <i class="fas fa-eye-slash"></i>
+                <span id="violationCount">{{ attempt.focus_violations }}</span>
+                / {{ attempt.exam.max_focus_violations }} salidas
+            </span>
+            {% endif %}
+        </div>
     </div>
     <div class="progress" style="height: 8px;">
         <div class="progress-bar" role="progressbar" style="width: {{ progress_percent }}%"></div>
@@ -61,7 +70,7 @@
         {% endif %}
         <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
             {% if can_submit_exam %}
-            <button type="submit" name="submit_exam" value="1" class="btn btn-success" onclick="return confirm('¿Enviar el examen? No podrás modificarlo después.');">
+            <button type="submit" name="submit_exam" value="1" class="btn btn-success" id="btn-submit-exam">
                 <i class="fas fa-paper-plane"></i> Enviar examen
             </button>
             {% else %}
@@ -72,6 +81,26 @@
     </div>
 </form>
 {% endif %}
+
+<!-- Modal: salida de pantalla detectada -->
+<div class="modal fade" id="focusWarningModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="focusWarningModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="focusWarningModalLabel"><i class="fas fa-exclamation-triangle"></i> ¡Atención!</h5>
+      </div>
+      <div class="modal-body text-center py-3">
+        <p class="fs-5 mb-2" id="focusWarningMsg"></p>
+        <p class="text-muted mb-0" id="focusWarningRemaining"></p>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-warning btn-lg px-5" id="focusWarningAccept">
+          <i class="fas fa-check"></i> Volver al examen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -85,6 +114,110 @@
       saveBtn.click();
     });
   });
+  var submitBtn = document.getElementById('btn-submit-exam');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      // Marcar navegación ANTES del confirm para que el blur que genera no cuente
+      if (window._setExamNavigating) window._setExamNavigating(true);
+      if (!confirm('¿Enviar el examen? No podrás modificarlo después.')) {
+        if (window._setExamNavigating) window._setExamNavigating(false);
+        return;
+      }
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'submit_exam'; inp.value = '1';
+      form.appendChild(inp);
+      form.submit();
+    });
+  }
+})();
+
+(function () {
+    var MAX = {{ attempt.exam.max_focus_violations }};
+    if (MAX === 0) return;
+
+    var form = document.getElementById('exam-take-form');
+    var violationUrl = "{% url 'quizzes:exam_focus_violation' course.id unit.id tema.id exam.id %}";
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var currentViolations = {{ attempt.focus_violations }};
+    var warningModal = new bootstrap.Modal(document.getElementById('focusWarningModal'));
+    var isModalOpen = false;
+    var isNavigating = false;
+
+    window._setExamNavigating = function (val) { isNavigating = val; };
+
+    form.addEventListener('submit', function () {
+        isNavigating = true;
+    });
+
+    function updateBadge(count) {
+        var badge = document.getElementById('violationBadge');
+        var countEl = document.getElementById('violationCount');
+        if (!badge) return;
+        countEl.textContent = count;
+        badge.classList.remove('d-none', 'bg-warning', 'bg-danger', 'text-white');
+        if (count >= MAX - 1) {
+            badge.classList.add('bg-danger', 'text-white');
+        } else {
+            badge.classList.add('bg-warning');
+        }
+    }
+
+    function forceSubmit() {
+        var inp1 = document.createElement('input');
+        inp1.type = 'hidden'; inp1.name = 'force_submit'; inp1.value = '1';
+        form.appendChild(inp1);
+        var inp2 = document.createElement('input');
+        inp2.type = 'hidden'; inp2.name = 'submit_exam'; inp2.value = '1';
+        form.appendChild(inp2);
+        form.submit();
+    }
+
+    function reportViolation(type) {
+        if (isModalOpen || isNavigating) return;
+        fetch(violationUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken},
+            body: 'type=' + encodeURIComponent(type),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.already_submitted) return;
+            currentViolations = data.violations;
+            updateBadge(currentViolations);
+            isModalOpen = true;
+            if (data.should_force_submit) {
+                document.getElementById('focusWarningMsg').textContent =
+                    'Superaste el límite de salidas permitidas. El examen se enviará automáticamente en 3 segundos.';
+                document.getElementById('focusWarningRemaining').textContent = '';
+                document.getElementById('focusWarningAccept').classList.add('d-none');
+                warningModal.show();
+                setTimeout(forceSubmit, 3000);
+            } else {
+                var remaining = data.limit - data.violations;
+                document.getElementById('focusWarningMsg').textContent =
+                    'Se detectó que saliste de la pantalla del examen.';
+                document.getElementById('focusWarningRemaining').textContent =
+                    'Te queda' + (remaining === 1 ? '' : 'n') + ' ' + remaining +
+                    ' salida' + (remaining !== 1 ? 's' : '') + ' antes del envío automático.';
+                document.getElementById('focusWarningAccept').classList.remove('d-none');
+                warningModal.show();
+            }
+        });
+    }
+
+    document.getElementById('focusWarningAccept').addEventListener('click', function () {
+        warningModal.hide();
+        isModalOpen = false;
+    });
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) reportViolation('visibility');
+    });
+
+    window.addEventListener('blur', function () {
+        if (!document.hidden) reportViolation('blur');
+    });
 })();
 </script>
 {% endblock %}

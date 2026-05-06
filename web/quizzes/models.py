@@ -42,6 +42,12 @@ class ThemeExam(models.Model):
         help_text='Opcional. Si se indica, solo podrán rendir el examen los alumnos '
         'marcados como presentes en esa fecha (según la planilla de asistencia del curso).',
     )
+    max_focus_violations = models.PositiveSmallIntegerField(
+        default=3,
+        verbose_name='Límite de salidas de pantalla',
+        help_text='Cantidad de veces que el alumno puede salir de la pantalla del examen '
+                  'antes de que se envíe automáticamente. 0 = sin límite.',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
 
@@ -207,6 +213,15 @@ class ExamAttempt(models.Model):
         blank=True,
         verbose_name='Orden aleatorio del intento',
         help_text='question_ids y option_order por pregunta.',
+    )
+    focus_violations = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Salidas de pantalla detectadas',
+    )
+    focus_violation_log = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Log de salidas de pantalla',
     )
 
     class Meta:
