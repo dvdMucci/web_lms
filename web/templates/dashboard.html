@@ -229,9 +229,14 @@
                         </div>
                         <div class="d-flex flex-column gap-1 align-items-end">
                             {% if row.can_take %}
-                            <a href="{% url 'quizzes:exam_take' ex.course.id ex.tema.unit.id ex.tema.id ex.id %}" class="btn btn-sm btn-primary">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-primary exam-start-btn"
+                                data-exam-url="{% url 'quizzes:exam_take' ex.course.id ex.tema.unit.id ex.tema.id ex.id %}"
+                                data-exam-title="{{ ex.title }}"
+                            >
                                 Realizar
-                            </a>
+                            </button>
                             {% else %}
                             <button type="button" class="btn btn-sm btn-secondary" disabled title="{{ row.block_message }}">Realizar</button>
                             {% endif %}
@@ -380,4 +385,64 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const startButtons = document.querySelectorAll('.exam-start-btn');
+    const confirmBtn = document.getElementById('confirmExamStartBtn');
+    const examTitleEl = document.getElementById('examStartModalTitle');
+    let examUrl = null;
+
+    if (!startButtons.length || !confirmBtn) return;
+
+    startButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            examUrl = this.getAttribute('data-exam-url');
+            const examTitle = this.getAttribute('data-exam-title') || 'Examen';
+            if (examTitleEl) {
+                examTitleEl.textContent = examTitle;
+            }
+            const modalEl = document.getElementById('examStartModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        });
+    });
+
+    confirmBtn.addEventListener('click', function () {
+        if (examUrl) {
+            window.location.href = examUrl;
+        }
+    });
+});
+</script>
+
+<div class="modal fade" id="examStartModal" tabindex="-1" aria-labelledby="examStartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="examStartModalLabel">
+                    <i class="fas fa-clipboard-check"></i> ¡Bienvenido al examen!
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Estás por comenzar: <strong id="examStartModalTitle">Examen</strong>.
+                </p>
+                <p class="mb-2">
+                    Durante el examen no podés cambiar de pantalla ni de pestaña.
+                </p>
+                <p class="mb-0">
+                    ¡Éxitos!
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirmExamStartBtn">Aceptar y comenzar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
