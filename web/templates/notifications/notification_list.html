@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}Notificaciones — Marina Ojeda LMS{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-bell me-2"></i>Notificaciones</h2>
+            {% if unread_count > 0 %}
+            <form method="post" action="{% url 'notifications:mark_all_read' %}" id="mark-all-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-check-double me-1"></i> Marcar todas como leídas
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if notifications %}
+        <div class="list-group">
+            {% for n in notifications %}
+            <a href="{{ n.url|default:'#' }}"
+               class="list-group-item list-group-item-action py-3 notif-item {% if not n.is_read %}notif-unread{% endif %}"
+               data-id="{{ n.id }}"
+               data-url="{{ n.url }}">
+                <div class="d-flex gap-3 align-items-start">
+                    <div class="flex-shrink-0 mt-1">
+                        <i class="{{ n.icon }} {{ n.color }} fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <span class="fw-semibold">{{ n.title }}</span>
+                            <small class="text-muted ms-3 flex-shrink-0">{{ n.created_at|date:"d/m/Y H:i" }}</small>
+                        </div>
+                        <p class="mb-0 text-muted small mt-1">{{ n.message }}</p>
+                    </div>
+                    {% if not n.is_read %}
+                    <div class="flex-shrink-0 mt-2">
+                        <i class="fas fa-circle text-primary" style="font-size:0.5rem;"></i>
+                    </div>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-bell-slash fa-3x mb-3 d-block"></i>
+            <p>No tienes notificaciones.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var csrfToken = '{{ csrf_token }}';
+    document.querySelectorAll('.notif-item').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            var id = this.getAttribute('data-id');
+            var url = this.getAttribute('data-url');
+            e.preventDefault();
+            fetch('/notifications/' + id + '/read/', {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken},
+            }).finally(function() {
+                if (url) window.location.href = url;
+            });
+        });
+    });
+
+    var markAllForm = document.getElementById('mark-all-form');
+    if (markAllForm) {
+        markAllForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch('{% url "notifications:mark_all_read" %}', {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken},
+            }).then(function() {
+                window.location.reload();
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

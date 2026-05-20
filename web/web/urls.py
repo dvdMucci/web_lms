@@ -19,6 +19,7 @@ urlpatterns = [
     path('units/', include('units.urls')), # Incluye las URLs de la aplicación 'units'
     path('', include('assignments.urls')), # Incluye las URLs de la aplicación 'assignments'
     path('', include('quizzes.urls')),
+    path('notifications/', include('notifications.urls')),
     
     # Dashboard URLs for courses
     path('courses/', include([

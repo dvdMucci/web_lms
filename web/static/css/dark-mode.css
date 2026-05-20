@@ -369,6 +369,11 @@
     color: var(--dm-text);
 }
 
+/* Notification unread highlight */
+.notif-unread {
+    background-color: rgba(90, 141, 238, 0.12) !important;
+}
+
 /* Popover */
 .dark-mode .popover {
     background-color: var(--dm-bg-secondary);

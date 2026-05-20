@@ -69,6 +69,44 @@ function copyToClipboard(text) {
                 </ul>
 
                 <ul class="navbar-nav align-items-center">
+                    <!-- Campanita de notificaciones -->
+                    <li class="nav-item me-2 dropdown" id="notifications-dropdown">
+                        <button class="btn btn-sm btn-outline-light position-relative"
+                                id="notif-bell"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false"
+                                title="Notificaciones">
+                            <i class="fas fa-bell"></i>
+                            {% if notifications_unread_count > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                  id="notif-badge" style="font-size:0.6rem;">
+                                {{ notifications_unread_count }}
+                            </span>
+                            {% else %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
+                                  id="notif-badge" style="font-size:0.6rem;">0</span>
+                            {% endif %}
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-0" id="notif-panel"
+                             style="width: 340px; max-height: 480px; overflow-y: auto;">
+                            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                                <strong class="small">Notificaciones</strong>
+                                <button class="btn btn-link btn-sm p-0 text-muted small" id="notif-mark-all">
+                                    Marcar todas como leídas
+                                </button>
+                            </div>
+                            <div id="notif-list">
+                                <div class="text-center py-4 text-muted small">
+                                    <i class="fas fa-spinner fa-spin"></i> Cargando...
+                                </div>
+                            </div>
+                            <div class="border-top px-3 py-2 text-center">
+                                <a href="{% url 'notifications:list' %}" class="small text-primary">Ver todas las notificaciones</a>
+                            </div>
+                        </div>
+                    </li>
+
                     <!-- Botón dark mode -->
                     <li class="nav-item me-2">
                         <button id="theme-toggle" class="btn btn-sm btn-outline-light" title="Cambiar tema">
@@ -131,6 +169,102 @@ function copyToClipboard(text) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/theme.js' %}"></script>
+    {% if user.is_authenticated %}
+    <script>
+    (function() {
+        var bell = document.getElementById('notif-bell');
+        var panel = document.getElementById('notif-panel');
+        var notifList = document.getElementById('notif-list');
+        var badge = document.getElementById('notif-badge');
+        var markAllBtn = document.getElementById('notif-mark-all');
+        if (!bell) return;
+
+        var csrfToken = '{{ csrf_token }}';
+        var fetchUrl = '{% url "notifications:fetch" %}';
+        var markAllUrl = '{% url "notifications:mark_all_read" %}';
+
+        function updateBadge(count) {
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.classList.remove('d-none');
+            } else {
+                badge.classList.add('d-none');
+            }
+        }
+
+        function renderNotifications(data) {
+            updateBadge(data.unread_count);
+            if (data.notifications.length === 0) {
+                notifList.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-bell-slash"></i><br>No hay notificaciones</div>';
+                return;
+            }
+            var html = '';
+            data.notifications.forEach(function(n) {
+                var unreadClass = n.is_read ? '' : 'notif-unread';
+                html += '<a href="' + (n.url || '#') + '" ' +
+                    'class="dropdown-item py-2 px-3 border-bottom notif-item ' + unreadClass + '" ' +
+                    'data-id="' + n.id + '" ' +
+                    'data-url="' + (n.url || '') + '" ' +
+                    'style="white-space:normal;">' +
+                    '<div class="d-flex gap-2 align-items-start">' +
+                    '<i class="' + n.icon + ' ' + n.color + ' mt-1 flex-shrink-0"></i>' +
+                    '<div class="flex-grow-1 overflow-hidden">' +
+                    '<div class="fw-semibold small text-truncate">' + n.title + '</div>' +
+                    '<div class="text-muted" style="font-size:0.78rem;line-height:1.3;">' + n.message + '</div>' +
+                    '<div class="text-muted" style="font-size:0.72rem;">' + n.created_at + '</div>' +
+                    '</div>' +
+                    (n.is_read ? '' : '<span class="flex-shrink-0 mt-1"><i class="fas fa-circle text-primary" style="font-size:0.45rem;"></i></span>') +
+                    '</div></a>';
+            });
+            notifList.innerHTML = html;
+
+            notifList.querySelectorAll('.notif-item').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    var id = this.getAttribute('data-id');
+                    var url = this.getAttribute('data-url');
+                    e.preventDefault();
+                    fetch('/notifications/' + id + '/read/', {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': csrfToken},
+                    }).finally(function() {
+                        if (url) window.location.href = url;
+                    });
+                });
+            });
+        }
+
+        bell.addEventListener('shown.bs.dropdown', function() {
+            fetch(fetchUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) { renderNotifications(data); });
+        });
+
+        if (markAllBtn) {
+            markAllBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                fetch(markAllUrl, {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': csrfToken},
+                }).then(function() {
+                    updateBadge(0);
+                    notifList.querySelectorAll('.notif-item').forEach(function(el) {
+                        el.classList.remove('notif-unread');
+                        var dot = el.querySelector('.fa-circle');
+                        if (dot) dot.closest('span').remove();
+                    });
+                });
+            });
+        }
+
+        setInterval(function() {
+            fetch(fetchUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) { updateBadge(data.unread_count); });
+        }, 60000);
+    })();
+    </script>
+    {% endif %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

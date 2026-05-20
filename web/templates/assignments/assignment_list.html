@@ -68,18 +68,22 @@
                     {% endif %}
                     {% if user.is_student %}
                     <div class="mb-2">
-                        {% if assignment.has_submission %}
+                        {% if assignment.needs_resubmission %}
+                        <span class="badge bg-danger">
+                            <i class="fas fa-redo"></i> Requiere Reentrega
+                        </span>
+                        {% elif assignment.has_submission %}
                         <span class="badge bg-success">
                             <i class="fas fa-check-circle"></i> Entregado
                         </span>
-                        {% if assignment.latest_submission.is_late %}
-                        <span class="badge bg-warning ms-1">
-                            <i class="fas fa-exclamation-triangle"></i> Fuera de Término
-                        </span>
-                        {% endif %}
                         {% else %}
                         <span class="badge bg-warning">
                             <i class="fas fa-clock"></i> Pendiente
+                        </span>
+                        {% endif %}
+                        {% if assignment.latest_submission.is_late %}
+                        <span class="badge bg-warning ms-1">
+                            <i class="fas fa-exclamation-triangle"></i> Fuera de Término
                         </span>
                         {% endif %}
                     </div>

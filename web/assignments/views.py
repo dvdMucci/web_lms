@@ -290,14 +290,25 @@ def assignment_list(request, course_id, unit_id, tema_id):
     # For each assignment, check if student has submitted
     if request.user.is_student():
         for assignment in assignments:
-            assignment.has_submission = AssignmentSubmission.objects.filter(
-                assignment=assignment,
-                student=request.user
-            ).exists()
-            assignment.latest_submission = AssignmentSubmission.objects.filter(
+            latest = AssignmentSubmission.objects.filter(
                 assignment=assignment,
                 student=request.user
             ).order_by('-version').first()
+
+            # También considera entrega colaborativa
+            if latest is None and assignment.allow_group_work:
+                collab = AssignmentCollaborator.objects.filter(
+                    submission__assignment=assignment,
+                    student=request.user,
+                ).select_related('submission').first()
+                if collab:
+                    latest = collab.submission
+
+            assignment.has_submission = latest is not None
+            assignment.latest_submission = latest
+            assignment.needs_resubmission = (
+                latest is not None and latest.needs_resubmission
+            )
     
     # Check if user can manage assignments
     can_manage = (
@@ -623,6 +634,53 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
         context['collaborated_submission'] = collaborated_submission
         context['can_submit'] = can_submit
         context['is_late'] = is_late
+
+        # ── Conversación y devolución ────────────────────────────────────────
+        # Determinar la entrega de referencia (la más reciente propia o colaborativa)
+        active_submission = submissions.first() or collaborated_submission
+        if active_submission:
+            # Cargar comentarios de nivel raíz con sus respuestas
+            comments = AssignmentComment.objects.filter(
+                submission=active_submission,
+                parent_comment__isnull=True,
+            ).select_related('user').prefetch_related('replies__user').order_by('created_at')
+
+            # El alumno puede comentar si es dueño o colaborador
+            collab_students = []
+            if assignment.allow_group_work:
+                collab_students = list(
+                    AssignmentCollaborator.objects.filter(
+                        submission=active_submission
+                    ).values_list('student_id', flat=True)
+                )
+            can_comment = (
+                active_submission.student == request.user or
+                request.user.id in collab_students
+            )
+
+            # Manejar envío del formulario de comentario
+            comment_form = None
+            if can_comment and request.method == 'POST' and 'add_comment' in request.POST:
+                comment_form = CommentForm(request.POST, submission=active_submission, user=request.user)
+                if comment_form.is_valid():
+                    new_comment = comment_form.save(commit=False)
+                    new_comment.submission = active_submission
+                    new_comment.user = request.user
+                    new_comment.save()
+                    messages.success(request, 'Comentario agregado.')
+                    return redirect(
+                        'assignments:assignment_detail',
+                        course_id=course_id, unit_id=unit_id,
+                        tema_id=tema_id, assignment_id=assignment_id,
+                    )
+            elif can_comment:
+                comment_form = CommentForm(submission=active_submission, user=request.user)
+
+            context['active_submission'] = active_submission
+            context['comments'] = comments
+            context['can_comment'] = can_comment
+            context['comment_form'] = comment_form
+
         return render(request, 'assignments/assignment_detail_student.html', context)
 
 

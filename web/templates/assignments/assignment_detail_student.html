@@ -90,7 +90,8 @@
                             </thead>
                             <tbody>
                                 {% for submission in submissions %}
-                                <tr>
+                                <tr class="submission-row" style="cursor:pointer;"
+                                    data-href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id submission.id %}">
                                     <td>
                                         <span class="badge bg-primary">v{{ submission.version }}</span>
                                     </td>
@@ -167,7 +168,8 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
+                                <tr class="submission-row" style="cursor:pointer;"
+                                    data-href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id collaborated_submission.id %}">
                                     <td><span class="badge bg-primary">v{{ collaborated_submission.version }}</span></td>
                                     <td>
                                         {% if collaborated_submission.attachment_files.all %}
@@ -209,6 +211,103 @@
                     {% endif %}
                 </div>
             </div>
+            {% if active_submission %}
+
+            {% if active_submission.feedback %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-comment-dots"></i> Devolución del Docente</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ active_submission.feedback|linebreaks }}</p>
+                    {% if active_submission.feedback_given_by %}
+                    <p class="text-muted mb-0">
+                        <small>
+                            <i class="fas fa-user"></i>
+                            {{ active_submission.feedback_given_by.get_full_name|default:active_submission.feedback_given_by.username }}
+                            — {{ active_submission.feedback_given_at|date:"d/m/Y H:i" }}
+                        </small>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-comments"></i> Conversación con el Docente</h5>
+                </div>
+                <div class="card-body">
+                    {% if comments %}
+                    <div class="comments-section mb-4">
+                        {% for comment in comments %}
+                        <div class="comment mb-3 p-3 border rounded">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>
+                                        {% if comment.user.is_teacher or comment.user.user_type == 'admin' %}
+                                            <i class="fas fa-chalkboard-teacher text-primary"></i>
+                                        {% else %}
+                                            <i class="fas fa-user-graduate text-success"></i>
+                                        {% endif %}
+                                        {{ comment.user.get_full_name|default:comment.user.username }}
+                                    </strong>
+                                    <small class="text-muted ms-2">{{ comment.created_at|date:"d/m/Y H:i" }}</small>
+                                </div>
+                            </div>
+                            <div class="comment-text">{{ comment.comment|linebreaks }}</div>
+                            {% if comment.replies.all %}
+                            <div class="replies ms-4 mt-3">
+                                {% for reply in comment.replies.all %}
+                                <div class="reply mb-2 p-2 border rounded">
+                                    <div class="d-flex align-items-start mb-1">
+                                        <div>
+                                            <strong>
+                                                {% if reply.user.is_teacher or reply.user.user_type == 'admin' %}
+                                                    <i class="fas fa-chalkboard-teacher text-primary"></i>
+                                                {% else %}
+                                                    <i class="fas fa-user-graduate text-success"></i>
+                                                {% endif %}
+                                                {{ reply.user.get_full_name|default:reply.user.username }}
+                                            </strong>
+                                            <small class="text-muted ms-2">{{ reply.created_at|date:"d/m/Y H:i" }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="reply-text">{{ reply.comment|linebreaks }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">Todavía no hay comentarios sobre esta entrega.</p>
+                    {% endif %}
+
+                    {% if can_comment and comment_form %}
+                    <div class="add-comment {% if comments %}mt-3 pt-3 border-top{% endif %}">
+                        <h6><i class="fas fa-paper-plane"></i> Agregar un comentario</h6>
+                        <form method="post" class="mt-2">
+                            {% csrf_token %}
+                            <input type="hidden" name="add_comment" value="1">
+                            <div class="mb-3">
+                                {{ comment_form.comment }}
+                                {% if comment_form.comment.errors %}
+                                <div class="text-danger small">{{ comment_form.comment.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i> Enviar
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% endif %}{# /active_submission #}
+
         </div>
         <div class="col-lg-4">
             <div class="card shadow mb-4">
@@ -285,6 +384,15 @@
 
 {% block extra_js %}
 <script>
+// Filas clickeables en "Mis Entregas"
+document.querySelectorAll('.submission-row').forEach(function(row) {
+    row.addEventListener('click', function(e) {
+        if (e.target.closest('a, button, form')) return;
+        var href = this.getAttribute('data-href');
+        if (href) window.location.href = href;
+    });
+});
+
 document.querySelectorAll('.external-link-warning').forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
