@@ -45,8 +45,15 @@
     border-color: var(--dm-border);
     color: var(--dm-text);
 }
-.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
+.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > *,
+.dark-mode .table-striped > tbody > tr:nth-of-type(even) > * {
     background-color: var(--dm-table-stripe);
+    color: var(--dm-text) !important;
+    --bs-table-striped-color: var(--dm-text);
+    --bs-table-color: var(--dm-text);
+}
+.dark-mode .table-striped > tbody > tr:nth-of-type(even) > * {
+    background-color: var(--dm-bg-secondary);
 }
 .dark-mode .table-hover > tbody > tr:hover > * {
     background-color: var(--dm-bg-card);
@@ -372,6 +379,142 @@
 /* Notification unread highlight */
 .notif-unread {
     background-color: rgba(90, 141, 238, 0.12) !important;
+}
+
+/* =====================================================
+   Fixes adicionales — auditoría dark mode completa
+   ===================================================== */
+
+/* text-dark: Bootstrap pone color: #212529 !important en utility classes.
+   En fondos oscuros el texto negro es ilegible — forzamos override. */
+.dark-mode .text-dark {
+    color: var(--dm-text) !important;
+}
+
+/* list-group-item-light (foros — canal privado) */
+.dark-mode .list-group-item-light {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+    border-color: var(--dm-border) !important;
+}
+
+/* badge bg-light text-dark: el text-dark de Bootstrap puede ganar por !important */
+.dark-mode .badge.bg-light,
+.dark-mode .badge.bg-light.text-dark {
+    background-color: var(--dm-bg-card) !important;
+    color: var(--dm-text) !important;
+}
+
+/* card.bg-warning (dashboard — "Total Usuarios" y similares) */
+.dark-mode .card.bg-warning {
+    background-color: #3d3010 !important;
+    border-color: #7a6000 !important;
+}
+.dark-mode .card.bg-warning,
+.dark-mode .card.bg-warning .card-body,
+.dark-mode .card.bg-warning h5,
+.dark-mode .card.bg-warning p,
+.dark-mode .card.bg-warning small {
+    color: #ffd060 !important;
+}
+
+/* card.bg-info (dashboard — tarjeta "Telegram") */
+.dark-mode .card.bg-info {
+    background-color: #0a3d52 !important;
+    border-color: #1a5a7a !important;
+}
+.dark-mode .card.bg-info,
+.dark-mode .card.bg-info .card-body,
+.dark-mode .card.bg-info h5,
+.dark-mode .card.bg-info p,
+.dark-mode .card.bg-info small {
+    color: #7ecff5 !important;
+}
+
+/* card-header / modal-header bg-warning + text-dark:
+   .text-dark tiene !important en Bootstrap, lo anulamos con mayor especificidad */
+.dark-mode .card-header.bg-warning.text-dark,
+.dark-mode .modal-header.bg-warning.text-dark {
+    color: #000 !important;
+}
+
+/* border-start y border genérico en contenido de foros/comentarios */
+.dark-mode .border-start {
+    border-left-color: var(--dm-border) !important;
+}
+.dark-mode .border-top {
+    border-top-color: var(--dm-border) !important;
+}
+.dark-mode .border-bottom {
+    border-bottom-color: var(--dm-border) !important;
+}
+.dark-mode .border-end {
+    border-right-color: var(--dm-border) !important;
+}
+/* Borde genérico en divs de contenido (bg-light con border rounded) */
+.dark-mode .border.rounded,
+.dark-mode .border.rounded-3 {
+    border-color: var(--dm-border) !important;
+}
+
+/* table-dark en thead — en dark mode el contraste desaparece, usar tono coherente */
+.dark-mode thead.table-dark > tr > th,
+.dark-mode thead.table-dark > tr > td {
+    background-color: #0a1628 !important;
+    color: var(--dm-text) !important;
+    border-color: var(--dm-border) !important;
+}
+
+/* submission-file-zone (drag & drop de archivos) */
+.dark-mode .submission-file-zone {
+    background-color: var(--dm-bg-secondary) !important;
+    color: var(--dm-text) !important;
+}
+
+/* Dashboard — tarjeta de almacenamiento (storage-card / storage-stat-panel) */
+.storage-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+.storage-stat-panel {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 20px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+}
+.storage-progress-track {
+    height: 35px;
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+}
+/* La tarjeta de almacenamiento mantiene el gradiente original — contrasta bien en dark mode */
+.dark-mode .storage-stat-panel {
+    background: rgba(255, 255, 255, 0.12) !important;
+}
+.dark-mode .storage-progress-track {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Login — card con fondo casi blanco visible en dark mode */
+.dark-mode .login-fullbleed .card {
+    background-color: rgba(22, 33, 62, 0.97) !important;
+    color: var(--dm-text) !important;
+}
+.dark-mode .login-card-header {
+    background-color: #1a4d35 !important;
+    color: #a0d8b0 !important;
+    border-color: #2a6040 !important;
+}
+.dark-mode .login-fullbleed .form-control {
+    background-color: var(--dm-input-bg) !important;
+    border-color: var(--dm-border) !important;
+    color: var(--dm-text) !important;
+}
+.dark-mode .login-fullbleed .form-label,
+.dark-mode .login-fullbleed .text-muted {
+    color: var(--dm-text-muted) !important;
 }
 
 /* Popover */

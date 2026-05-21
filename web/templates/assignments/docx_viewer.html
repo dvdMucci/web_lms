@@ -35,12 +35,17 @@
   #docx-output table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
   #docx-output td, #docx-output th { border: 1px solid #ccc; padding: .4rem .6rem; }
   .dark-mode #docx-output {
-    background: #1e1e2e;
-    border-color: #3a3a5a;
-    color: #ddd;
+    background: #1e1e2e !important;
+    border-color: #3a3a5a !important;
+    color: #ddd !important;
+  }
+  .dark-mode #docx-output td,
+  .dark-mode #docx-output th {
+    border-color: #3a3a5a !important;
+    color: #ddd !important;
   }
   .dark-mode #docx-toolbar {
-    border-bottom-color: #3a3a5a;
+    border-bottom-color: #3a3a5a !important;
   }
 </style>
 {% endblock %}
