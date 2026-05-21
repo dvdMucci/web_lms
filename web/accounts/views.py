@@ -548,10 +548,10 @@ def profile_view(request):
         context['teacher_materials'] = Material.objects.filter(
             uploaded_by=request.user,
             assignment__isnull=True,
-        ).select_related('course', 'tema__unit').order_by('-uploaded_at')[:10]
+        ).select_related('course', 'tema').order_by('-uploaded_at')[:10]
         context['teacher_assignments'] = Assignment.objects.filter(
             created_by=request.user
-        ).select_related('course', 'unit').order_by('-created_at')[:10]
+        ).select_related('course').order_by('-created_at')[:10]
     return render(request, 'accounts/profile.html', context)
 
 @login_required
