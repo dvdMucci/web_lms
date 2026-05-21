@@ -704,6 +704,38 @@ def user_edit(request, user_id):
     return render(request, 'accounts/user_edit.html', context)
 
 @user_passes_test(is_admin)
+@require_http_methods(["POST"])
+def user_reset_password(request, user_id):
+    """Blanquea la contraseña del usuario a la clave por defecto."""
+    user = get_object_or_404(CustomUser, id=user_id)
+
+    if user == request.user:
+        messages.error(request, 'No podés blanquear tu propia contraseña desde aquí.')
+        return redirect('user_edit', user_id=user_id)
+
+    DEFAULT_PASSWORD = 'CambiameYa!'
+    user.set_password(DEFAULT_PASSWORD)
+    user.save(update_fields=['password'])
+
+    log_user_activity(
+        action=UserActivityLog.ACTION_PASSWORD_RESET
+            if hasattr(UserActivityLog, 'ACTION_PASSWORD_RESET')
+            else 'password_reset',
+        actor=request.user,
+        target_user=user,
+        target_username=user.username,
+        details='Blanqueo de contraseña desde gestión de usuarios',
+    )
+
+    messages.success(
+        request,
+        f'La contraseña de {user.get_full_name() or user.username} fue blanqueada. '
+        f'La nueva contraseña es: {DEFAULT_PASSWORD}'
+    )
+    return redirect('user_edit', user_id=user_id)
+
+
+@user_passes_test(is_admin)
 @require_http_methods(["POST"]) # Solo permite peticiones POST para eliminar
 def user_delete(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)

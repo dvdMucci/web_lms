@@ -83,10 +83,54 @@
                         <a href="{% url 'user_list' %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Volver a la Lista
                         </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Guardar Cambios
-                        </button>
+                        <div class="d-flex gap-2">
+                            {% if user_obj != request.user %}
+                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
+                                <i class="fas fa-key"></i> Blanquear Contraseña
+                            </button>
+                            {% endif %}
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Cambios
+                            </button>
+                        </div>
                     </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmación blanqueo de contraseña -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="resetPasswordModalLabel">
+                    <i class="fas fa-key"></i> Blanquear Contraseña
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                <p class="fs-5 mb-1">
+                    ¿Blanquear la contraseña de
+                    <strong>{{ user_obj.get_full_name|default:user_obj.username }}</strong>?
+                </p>
+                <p class="text-muted mb-0">
+                    La nueva contraseña será:
+                    <code class="fs-6 text-danger fw-bold">CambiameYa!</code>
+                </p>
+                <p class="text-muted small mt-2">El alumno deberá cambiarla al ingresar.</p>
+            </div>
+            <div class="modal-footer justify-content-center gap-3">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <form method="post" action="{% url 'user_reset_password' user_obj.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4">
+                        <i class="fas fa-key"></i> Sí, blanquear
+                    </button>
                 </form>
             </div>
         </div>
