@@ -6,6 +6,7 @@ urlpatterns = [
     path('register/', views.register_view, name='register'),
     path('register/<str:token>/', views.register_with_token_view, name='register_with_token'),
     path('login/', views.login_view, name='login'),
+    path('login/2fa/', views.login_2fa_view, name='login_2fa'),
     path('logout/', views.logout_view, name='logout'),
     path('verify-email/', views.email_verify, name='email_verify'),
     path('verify-email/required/', views.email_verification_required, name='email_verification_required'),

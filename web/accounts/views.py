@@ -17,7 +17,8 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from urllib.parse import urlencode
 from django_otp.plugins.otp_totp.models import TOTPDevice
-from django_otp.util import random_hex # No usado directamente en el código provisto, pero útil para OTP
+from django_otp.util import random_hex
+from django_otp import login as otp_login
 import qrcode
 import io
 import base64
@@ -93,18 +94,57 @@ def login_view(request):
         form = LoginForm(request.POST, request=request)
         if form.is_valid():
             user = form.get_user()
+            device = user.totpdevice_set.filter(confirmed=True).first()
+            if device:
+                # Guardar el usuario en sesión y pedir el código TOTP
+                request.session['pending_2fa_user_id'] = user.pk
+                request.session['pending_2fa_backend'] = user.backend
+                return redirect('login_2fa')
+            else:
+                login(request, user)
+                log_user_activity(
+                    action=UserActivityLog.ACTION_LOGIN,
+                    actor=user,
+                    target_user=user,
+                    details='Inicio de sesión exitoso',
+                )
+                return redirect('dashboard')
+    else:
+        form = LoginForm()
+
+    return render(request, 'accounts/login.html', {'form': form})
+
+
+def login_2fa_view(request):
+    """Segunda etapa del login: verificación del código TOTP."""
+    user_id = request.session.get('pending_2fa_user_id')
+    backend = request.session.get('pending_2fa_backend')
+    if not user_id:
+        return redirect('login')
+
+    user = get_object_or_404(CustomUser, pk=user_id)
+
+    if request.method == 'POST':
+        token = request.POST.get('token', '').strip()
+        device = user.totpdevice_set.filter(confirmed=True).first()
+        if device and device.verify_token(token):
+            # Marcar como verificado para django_otp (necesario para AdminSiteOTPRequired)
+            user.backend = backend
             login(request, user)
+            otp_login(request, device)
+            del request.session['pending_2fa_user_id']
+            request.session.pop('pending_2fa_backend', None)
             log_user_activity(
                 action=UserActivityLog.ACTION_LOGIN,
                 actor=user,
                 target_user=user,
-                details='Inicio de sesión exitoso',
+                details='Inicio de sesión exitoso (2FA verificado)',
             )
             return redirect('dashboard')
-    else:
-        form = LoginForm()
-    
-    return render(request, 'accounts/login.html', {'form': form})
+        else:
+            messages.error(request, 'Código incorrecto. Intentá de nuevo.')
+
+    return render(request, 'accounts/login_2fa.html')
 
 
 def register_view(request):

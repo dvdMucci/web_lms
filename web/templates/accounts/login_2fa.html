@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Verificación en dos pasos{% endblock %}
+
+{% block content %}
+<div class="login-fullbleed d-flex align-items-center justify-content-center min-vh-100">
+    <div class="col-12 login-card-wrap">
+        <div class="card shadow-lg border-0" style="max-width:420px; margin:auto;">
+            <div class="card-header login-card-header text-center py-3">
+                <h4 class="mb-0 fw-bold">
+                    <i class="fas fa-shield-alt me-2"></i> Verificación en dos pasos
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+
+                <p class="text-muted mb-4">
+                    Ingresá el código de 6 dígitos de tu aplicación de autenticación
+                    (Google Authenticator, Authy, etc.).
+                </p>
+
+                <form method="post" autocomplete="off">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label for="token" class="form-label fw-semibold">Código TOTP</label>
+                        <input
+                            type="text"
+                            name="token"
+                            id="token"
+                            class="form-control form-control-lg text-center"
+                            placeholder="000000"
+                            maxlength="6"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            autofocus
+                            autocomplete="one-time-code"
+                        >
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-login-submit btn-lg">
+                            <i class="fas fa-check-circle me-1"></i> Verificar
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-3">
+                <a href="{% url 'login' %}" class="text-muted small">
+                    <i class="fas fa-arrow-left me-1"></i> Volver al inicio de sesión
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

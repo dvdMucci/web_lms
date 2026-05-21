@@ -1,4 +1,6 @@
 from django.contrib import admin
+from two_factor.admin import AdminSiteOTPRequired
+admin.site.__class__ = AdminSiteOTPRequired
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
