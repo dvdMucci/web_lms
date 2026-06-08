@@ -115,7 +115,7 @@ function copyToClipboard(text) {
                     </li>
 
                     <!-- Botón ver como alumno (solo docentes/admin) -->
-                    {% if user.user_type == 'teacher' or user.user_type == 'admin' %}
+                    {% if user.can_view_as_teacher %}
                     <li class="nav-item me-2">
                         <a href="{% url 'toggle_student_view' %}"
                            class="btn btn-sm {% if request.viewing_as_student %}btn-warning{% else %}btn-outline-light{% endif %}"

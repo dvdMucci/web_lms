@@ -9,6 +9,7 @@ class CustomUser(AbstractUser):
         ('student', 'Estudiante'),
         ('teacher', 'Profesor'),
         ('admin', 'Administrador'),
+        ('observer', 'Observador'),
     ]
     
     user_type = models.CharField(
@@ -74,8 +75,15 @@ class CustomUser(AbstractUser):
     def is_teacher(self):
         return self.user_type == 'teacher'
 
+    def is_observer(self):
+        return self.user_type == 'observer'
+
     def is_student(self):
         return self.user_type == 'student'
+
+    def can_view_as_teacher(self):
+        """Puede ver el contenido del docente (teacher, observer y admin)."""
+        return self.user_type in ('teacher', 'observer', 'admin')
 
     def is_email_verified(self):
         return bool(self.email_verified_at)

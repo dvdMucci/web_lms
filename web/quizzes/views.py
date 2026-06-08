@@ -527,7 +527,7 @@ def record_focus_violation(request, course_id, unit_id, tema_id, exam_id):
 def exam_take(request, course_id, unit_id, tema_id, exam_id):
     course, unit, tema, exam = _get_exam(course_id, unit_id, tema_id, exam_id)
 
-    if request.user.is_teacher() or getattr(request.user, 'user_type', '') == 'admin':
+    if request.user.can_view_as_teacher():
         messages.info(request, 'Los docentes gestionan el examen desde la vista de administración.')
         return redirect(
             'quizzes:exam_manage',
@@ -791,7 +791,7 @@ def exam_take(request, course_id, unit_id, tema_id, exam_id):
 def exam_result(request, course_id, unit_id, tema_id, exam_id):
     course, unit, tema, exam = _get_exam(course_id, unit_id, tema_id, exam_id)
 
-    if request.user.is_teacher() or getattr(request.user, 'user_type', '') == 'admin':
+    if request.user.can_view_as_teacher():
         return redirect(
             'quizzes:exam_manage',
             course_id=course_id,

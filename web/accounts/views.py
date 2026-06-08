@@ -356,6 +356,7 @@ def dashboard(request):
             assignment=OuterRef('pk'),
             student=request.user,
         )
+        from django.db.models import Count, Q as Q_
         pending_assignments = (
             Assignment.objects.filter(
                 is_active=True,
@@ -368,8 +369,11 @@ def dashboard(request):
             .annotate(
                 is_enrolled=Exists(approved_enrollment_exists),
                 has_submission=Exists(student_submission_exists),
+                target_count=Count('target_students'),
             )
             .filter(is_enrolled=True, has_submission=False)
+            .filter(Q_(target_count=0) | Q_(target_students=request.user))
+            .distinct()
             .select_related('course', 'tema', 'tema__unit')
             .order_by('due_date')[:10]
         )
@@ -411,7 +415,7 @@ def dashboard(request):
                     'block_message': msg or '',
                 }
             )
-    elif (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student:
+    elif (request.user.can_view_as_teacher()) and not viewing_as_student:
         from courses.models import Enrollment
 
         if request.user.user_type == 'admin':
@@ -542,7 +546,7 @@ def profile_view(request):
         'is_2fa_enabled': request.user.is_2fa_enabled,
         'is_admin_user': request.user.can_manage_users(),
     }
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if request.user.can_view_as_teacher():
         from materials.models import Material
         from assignments.models import Assignment
         context['teacher_materials'] = Material.objects.filter(
@@ -852,7 +856,7 @@ def toggle_student_view(request):
     """Activa/desactiva la vista de alumno para docentes y administradores."""
     from django.shortcuts import redirect as redir
     user = request.user
-    is_staff = user.user_type in ('teacher', 'admin') if hasattr(user, 'user_type') else False
+    is_staff = user.user_type in ('teacher', 'admin', 'observer') if hasattr(user, 'user_type') else False
     if not is_staff:
         messages.error(request, 'No tienes permiso para usar esta función.')
         return redir('dashboard')

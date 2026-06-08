@@ -55,7 +55,7 @@
                                  aria-valuemax="{{ course.enrollment_limit }}">
                             </div>
                         </div>
-                        {% if user.is_teacher or user.user_type == 'admin' %}
+                        {% if user.can_view_as_teacher %}
                             {% if can_manage %}
                             <p class="mt-2 mb-0">
                                 <i class="fas fa-door-open"></i>
@@ -133,7 +133,7 @@
                         {% endif %}
                     {% endif %}
 
-                    {% if user.is_teacher or user.user_type == 'admin' %}
+                    {% if user.can_view_as_teacher %}
                         {% if can_manage %}
                         <div class="mt-4">
                             <h5><i class="fas fa-user-tie"></i> Docentes Colaboradores</h5>
@@ -190,7 +190,7 @@
                 </div>
             </div>
 
-            {% if user.is_teacher or user.user_type == 'admin' %}
+            {% if user.can_view_as_teacher %}
                 {% if can_manage %}
                 <div class="card shadow mb-4">
                     <div class="card-header">
@@ -278,7 +278,7 @@
                         <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary w-100 mb-2">
                             <i class="fas fa-arrow-left"></i> Volver a Cursos
                         </a>
-                    {% elif user.is_teacher or user.user_type == 'admin' %}
+                    {% elif user.can_view_as_teacher %}
                         <a href="{% url 'units:unit_list' course.id %}" class="btn btn-primary w-100 mb-2">
                             <i class="fas fa-book-open"></i> Gestionar Unidades
                         </a>

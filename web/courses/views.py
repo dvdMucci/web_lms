@@ -165,7 +165,7 @@ class EnrollmentDetailView(generics.RetrieveUpdateAPIView):
 @login_required
 def course_list_teacher(request):
     """List all courses - teachers can see all, but only manage their own or where they are collaborators"""
-    if not (request.user.is_teacher() or request.user.user_type == 'admin'):
+    if not (request.user.can_view_as_teacher()):
         messages.error(request, 'No tienes permiso para acceder a esta página.')
         return redirect('dashboard')
     
@@ -422,7 +422,7 @@ def course_detail(request, course_id):
             context['collaborators'] = course.collaborators.all()
 
     # For teachers/admins (not in student-view mode)
-    elif request.user.is_teacher() or request.user.user_type == 'admin':
+    elif request.user.can_view_as_teacher():
         # Check if user can manage this course
         can_manage = (
             course.instructor == request.user or

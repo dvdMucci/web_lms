@@ -116,8 +116,8 @@ class MaterialListCreateView(generics.ListCreateAPIView):
 
         # Filter based on user permissions
         user = self.request.user
-        if user.is_teacher() or user.user_type == 'admin':
-            # Teachers and admins see all materials
+        if user.can_view_as_teacher():
+            # Teachers, observers and admins see all materials
             pass
         else:
             # Students see materials based on visibility and publication status
@@ -204,7 +204,7 @@ def material_list(request, course_id):
     
     # Check if user can view the course
     can_view = False
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if request.user.can_view_as_teacher():
         can_view = True
     elif request.user.is_student():
         # Check if student is enrolled and approved
@@ -223,8 +223,8 @@ def material_list(request, course_id):
             return redirect('course_list_teacher')
     
     # Get materials based on user permissions
-    if request.user.is_teacher() or request.user.user_type == 'admin':
-        # Teachers and admins see all materials
+    if request.user.can_view_as_teacher():
+        # Teachers, observers and admins see all materials
         materials = Material.objects.filter(course=course, assignment__isnull=True).order_by('-uploaded_at')
     else:
         # Students see materials based on visibility and publication status

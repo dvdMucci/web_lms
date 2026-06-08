@@ -37,7 +37,7 @@ def _guide_materials_for_request_user(user, assignment):
     from materials.models import Material
 
     qs = Material.objects.filter(assignment=assignment).order_by('-uploaded_at')
-    if user.is_teacher() or user.user_type == 'admin':
+    if user.can_view_as_teacher():
         return qs
     return qs.filter(is_published=True).filter(
         Q(visibility='public') | Q(visibility='enrolled')
@@ -98,7 +98,7 @@ def _http_response_from_uploaded_file(field_file, filename, *, inline):
 @login_required
 def teacher_submission_report(request):
     """Reporte docente de entregas por alumno con filtros por curso, unidad, alumno y fechas."""
-    if not request.user.is_teacher():
+    if not request.user.can_view_as_teacher():
         messages.error(request, 'Esta vista es solo para docentes.')
         return redirect('dashboard')
 
@@ -263,7 +263,7 @@ def assignment_list(request, course_id, unit_id, tema_id):
     
     # Check if user can view the theme
     can_view = False
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if request.user.can_view_as_teacher():
         can_view = True
     elif request.user.is_student():
         enrollment = Enrollment.objects.filter(
@@ -278,14 +278,19 @@ def assignment_list(request, course_id, unit_id, tema_id):
         return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     # Get assignments - teachers see all, students only active and published
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if request.user.can_view_as_teacher():
         assignments = Assignment.objects.filter(tema=tema).order_by('due_date', 'created_at')
     else:
+        from django.db.models import Q, Count
         assignments = Assignment.objects.filter(
             tema=tema,
             is_active=True,
-            is_published=True
-        ).order_by('due_date', 'created_at')
+            is_published=True,
+        ).annotate(
+            target_count=Count('target_students')
+        ).filter(
+            Q(target_count=0) | Q(target_students=request.user)
+        ).distinct().order_by('due_date', 'created_at')
     
     # For each assignment, check if student has submitted
     if request.user.is_student():
@@ -353,9 +358,16 @@ def assignment_create(request, course_id, unit_id, tema_id):
             assignment.course = course
             assignment.tema = tema
             assignment.created_by = request.user
+            assignment._skip_published_notification = True
             try:
                 assignment.save()
-                
+                form.save_m2m()
+
+                # Notificaciones de campana (después de save_m2m para respetar target_students)
+                if assignment.is_published and not assignment.scheduled_publish_at:
+                    from notifications.signals import notify_assignment_bell
+                    notify_assignment_bell(assignment)
+
                 # Si se publicó inmediatamente y se solicitó notificación, enviar correos
                 if assignment.is_published and not assignment.scheduled_publish_at and assignment.send_notification_email:
                     try:
@@ -433,8 +445,16 @@ def assignment_edit(request, course_id, unit_id, tema_id, assignment_id):
         if form.is_valid():
             old_is_published = assignment.is_published
             try:
-                assignment = form.save()
-                
+                assignment = form.save(commit=False)
+                assignment._skip_published_notification = True
+                assignment.save()
+                form.save_m2m()
+
+                # Notificaciones de campana al publicar por primera vez (después de save_m2m)
+                if not old_is_published and assignment.is_published and not assignment.scheduled_publish_at:
+                    from notifications.signals import notify_assignment_bell
+                    notify_assignment_bell(assignment)
+
                 # Si se publicó por primera vez y se solicitó notificación, enviar correos
                 if not old_is_published and assignment.is_published and not assignment.scheduled_publish_at and assignment.send_notification_email:
                     try:
@@ -521,7 +541,7 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
     
     # Check if user can view
     can_view = False
-    if request.user.is_teacher() or request.user.user_type == 'admin':
+    if request.user.can_view_as_teacher():
         can_view = True
     elif request.user.is_student():
         enrollment = Enrollment.objects.filter(
@@ -529,14 +549,18 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
             course=course,
             status='approved'
         ).first()
-        can_view = enrollment is not None and assignment.is_active and assignment.is_published and tema.is_visible_to_students()
+        if enrollment is not None and assignment.is_active and assignment.is_published and tema.is_visible_to_students():
+            target_ids = assignment.target_students.values_list('id', flat=True)
+            can_view = not target_ids or request.user.id in target_ids
+        else:
+            can_view = False
     
     if not can_view:
         messages.error(request, 'No tienes permiso para ver esta tarea.')
         return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
     
     viewing_as_student = getattr(request, 'viewing_as_student', False)
-    is_teacher = (request.user.is_teacher() or request.user.user_type == 'admin') and not viewing_as_student
+    is_teacher = (request.user.can_view_as_teacher()) and not viewing_as_student
     can_manage = assignment.can_be_managed_by(request.user) and not viewing_as_student
 
     context = {
@@ -550,12 +574,12 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
     }
 
     if is_teacher:
-        # Teacher view: show all submissions
-        # Get all enrolled students
-        enrolled_students = Enrollment.objects.filter(
-            course=course,
-            status='approved'
-        ).select_related('student')
+        # Teacher view: show submissions from target students (or all enrolled if no target set)
+        target_ids = list(assignment.target_students.values_list('id', flat=True))
+        enrolled_qs = Enrollment.objects.filter(course=course, status='approved').select_related('student')
+        if target_ids:
+            enrolled_qs = enrolled_qs.filter(student_id__in=target_ids)
+        enrolled_students = enrolled_qs
         
         # For each student, get their latest submission
         students_with_submissions = []
@@ -802,7 +826,7 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
             return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
+    elif not (request.user.can_view_as_teacher()):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
@@ -852,7 +876,7 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
             submission.student == request.user or
             request.user in collaborator_students
         )
-    elif request.user.is_teacher() or request.user.user_type == 'admin':
+    elif request.user.can_view_as_teacher():
         can_comment = can_manage
     
     # Handle comment form submission
@@ -1028,7 +1052,7 @@ def _submission_serve_file(request, course_id, unit_id, tema_id, assignment_id, 
                 tema_id=tema_id,
                 assignment_id=assignment_id,
             )
-    elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
+    elif not (request.user.can_view_as_teacher()):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect(
             'assignments:assignment_detail',
@@ -1115,7 +1139,7 @@ def submission_docx_viewer(request, course_id, unit_id, tema_id, assignment_id, 
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
             return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    elif not (request.user.is_teacher() or request.user.user_type == 'admin'):
+    elif not (request.user.can_view_as_teacher()):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
 
