@@ -62,6 +62,38 @@
                             <div class="text-danger">{{ form.user_type.errors }}</div>
                         {% endif %}
                     </div>
+
+                    <!-- Observer scope — only shown when "Observador" is selected -->
+                    <div id="observer-scope-panel" class="mb-3 border rounded p-3 bg-light" style="display:none;">
+                        <label class="form-label fw-semibold"><i class="fas fa-eye me-1"></i> Alcance del Observador</label>
+                        <div class="mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="observer_scope" id="scope_general" value="general" checked>
+                                <label class="form-check-label" for="scope_general">
+                                    <strong>General</strong> — puede ver <em>todos</em> los cursos en solo lectura
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="observer_scope" id="scope_specific" value="specific">
+                                <label class="form-check-label" for="scope_specific">
+                                    <strong>Por curso(s)</strong> — solo puede ver los cursos seleccionados
+                                </label>
+                            </div>
+                        </div>
+                        <div id="observer-course-list" style="display:none;">
+                            <label class="form-label text-muted small">Seleccioná uno o más cursos:</label>
+                            <div class="border rounded p-2 bg-white" style="max-height:220px;overflow-y:auto;">
+                                {% for course in all_courses %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="observer_courses" value="{{ course.id }}" id="ocourse_{{ course.id }}">
+                                    <label class="form-check-label" for="ocourse_{{ course.id }}">{{ course.title }}</label>
+                                </div>
+                                {% empty %}
+                                <p class="text-muted small mb-0">No hay cursos activos.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="row">
                         <div class="col-md-6">
@@ -103,4 +135,32 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const userTypeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
+    const scopePanel = document.getElementById('observer-scope-panel');
+    const courseList = document.getElementById('observer-course-list');
+    const radioGeneral = document.getElementById('scope_general');
+    const radioSpecific = document.getElementById('scope_specific');
+
+    function toggleScopePanel() {
+        const isObserver = userTypeSelect.value === 'observer';
+        scopePanel.style.display = isObserver ? '' : 'none';
+        toggleCourseList();
+    }
+
+    function toggleCourseList() {
+        courseList.style.display = radioSpecific.checked ? '' : 'none';
+    }
+
+    userTypeSelect.addEventListener('change', toggleScopePanel);
+    radioGeneral.addEventListener('change', toggleCourseList);
+    radioSpecific.addEventListener('change', toggleCourseList);
+
+    toggleScopePanel(); // run on load
+})();
+</script>
 {% endblock %}

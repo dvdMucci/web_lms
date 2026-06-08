@@ -702,12 +702,60 @@ def user_activity_list(request, user_id):
         },
     )
 
+def _save_observer_courses(user, post_data):
+    """
+    Syncs the Course.observers M2M for a user based on the POSTed observer scope.
+
+    If the user is not an observer, or chose 'general', clear all course M2M entries.
+    If they chose 'specific', assign exactly the checked courses.
+    """
+    from courses.models import Course as CourseModel
+
+    if user.user_type != 'observer':
+        # Not an observer at all — clear any previous course assignments
+        for course in CourseModel.objects.filter(observers=user):
+            course.observers.remove(user)
+        return
+
+    scope = post_data.get('observer_scope', 'general')
+
+    if scope == 'general':
+        # Global observer: remove from all specific courses
+        for course in CourseModel.objects.filter(observers=user):
+            course.observers.remove(user)
+    else:
+        # Specific courses
+        selected_ids = set(
+            int(x) for x in post_data.getlist('observer_courses') if x.isdigit()
+        )
+        current_ids = set(
+            CourseModel.objects.filter(observers=user).values_list('id', flat=True)
+        )
+        # Add new
+        for cid in selected_ids - current_ids:
+            try:
+                CourseModel.objects.get(pk=cid).observers.add(user)
+            except CourseModel.DoesNotExist:
+                pass
+        # Remove old
+        for cid in current_ids - selected_ids:
+            try:
+                CourseModel.objects.get(pk=cid).observers.remove(user)
+            except CourseModel.DoesNotExist:
+                pass
+
+
 @user_passes_test(is_admin)
 def user_create(request):
+    from courses.models import Course as CourseModel
+    all_courses = CourseModel.objects.filter(is_active=True).order_by('title')
+
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            # Handle observer course scope
+            _save_observer_courses(user, request.POST)
             log_user_activity(
                 action=UserActivityLog.ACTION_USER_CREATED,
                 actor=request.user,
@@ -718,23 +766,31 @@ def user_create(request):
             return redirect('user_list')
     else:
         form = CustomUserCreationForm()
-    
-    return render(request, 'accounts/user_form.html', {'form': form, 'title': 'Crear Usuario'})
+
+    return render(request, 'accounts/user_form.html', {
+        'form': form,
+        'title': 'Crear Usuario',
+        'all_courses': all_courses,
+    })
 
 @user_passes_test(is_admin)
 def user_edit(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
-    
+    from courses.models import Course as CourseModel
+    all_courses = CourseModel.objects.filter(is_active=True).order_by('title')
+
     if request.method == 'POST':
         form = ProfileForm(request.POST, instance=user)
         user_type = request.POST.get('user_type')
-        is_active = request.POST.get('is_active') == 'on' # Los checkboxes envían 'on' o nada
-        
+        is_active = request.POST.get('is_active') == 'on'
+
         if form.is_valid():
-            user = form.save(commit=False) # Guarda el formulario pero no en la BD aún
+            user = form.save(commit=False)
             user.user_type = user_type
             user.is_active = is_active
-            user.save() # Ahora guarda en la BD
+            user.save()
+            # Handle observer course scope
+            _save_observer_courses(user, request.POST)
             log_user_activity(
                 action=UserActivityLog.ACTION_USER_UPDATED,
                 actor=request.user,
@@ -745,12 +801,17 @@ def user_edit(request, user_id):
             return redirect('user_list')
     else:
         form = ProfileForm(instance=user)
-    
+
+    # Current observed courses for pre-selecting checkboxes
+    current_observed_ids = set(user.observed_courses.values_list('id', flat=True))
+
     context = {
         'form': form,
         'user_obj': user,
-        'user_types': CustomUser.USER_TYPES, # Pasa los tipos de usuario para el select
-        'title': f'Editar Usuario: {user.username}'
+        'user_types': CustomUser.USER_TYPES,
+        'title': f'Editar Usuario: {user.username}',
+        'all_courses': all_courses,
+        'current_observed_ids': current_observed_ids,
     }
     return render(request, 'accounts/user_edit.html', context)
 

@@ -82,8 +82,22 @@ class CustomUser(AbstractUser):
         return self.user_type == 'student'
 
     def can_view_as_teacher(self):
-        """Puede ver el contenido del docente (teacher, observer y admin)."""
-        return self.user_type in ('teacher', 'observer', 'admin')
+        """
+        Puede ver el contenido del docente con acceso GLOBAL (todos los cursos).
+
+        - teacher / admin  → siempre True
+        - observer general → True solo cuando NO tiene cursos específicos asignados
+        - observer de curso → False (accede solo a través de can_view_course_as_teacher)
+        """
+        if self.user_type in ('teacher', 'admin'):
+            return True
+        if self.user_type == 'observer':
+            # Sin PK (usuario aún no guardado) → tratar como global
+            if not self.pk:
+                return True
+            # Observador global: sin cursos específicos asignados
+            return not self.observed_courses.exists()
+        return False
 
     def is_email_verified(self):
         return bool(self.email_verified_at)
