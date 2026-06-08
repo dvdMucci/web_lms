@@ -55,7 +55,7 @@
                                  aria-valuemax="{{ course.enrollment_limit }}">
                             </div>
                         </div>
-                        {% if user.can_view_as_teacher %}
+                        {% if user.can_view_as_teacher or is_course_observer %}
                             {% if can_manage %}
                             <p class="mt-2 mb-0">
                                 <i class="fas fa-door-open"></i>
@@ -133,8 +133,7 @@
                         {% endif %}
                     {% endif %}
 
-                    {% if user.can_view_as_teacher %}
-                        {% if can_manage %}
+                    {% if user.can_view_as_teacher or is_course_observer %}
                         <div class="mt-4">
                             <h5><i class="fas fa-user-tie"></i> Docentes Colaboradores</h5>
                             {% if collaborators %}
@@ -142,7 +141,7 @@
                                 {% for collaborator in collaborators %}
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     <span><i class="fas fa-user"></i> {{ collaborator.get_full_name|default:collaborator.username }}</span>
-                                    {% if course.instructor == user or user.user_type == 'admin' %}
+                                    {% if can_manage and course.instructor == user or user.user_type == 'admin' %}
                                     <form method="post" action="{% url 'remove_collaborator' course.id collaborator.id %}" class="d-inline">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este colaborador?');">
@@ -156,8 +155,8 @@
                             {% else %}
                             <p class="text-muted">No hay colaboradores asignados a este curso.</p>
                             {% endif %}
-                            
-                            {% if course.instructor == user or user.user_type == 'admin' %}
+
+                            {% if can_manage and course.instructor == user or user.user_type == 'admin' %}
                             <div class="card">
                                 <div class="card-body">
                                     <h6>Agregar Colaborador</h6>
@@ -185,7 +184,6 @@
                             </div>
                             {% endif %}
                         </div>
-                        {% endif %}
                     {% endif %}
 
                     {% if can_manage and course_observers %}
@@ -210,11 +208,12 @@
                 </div>
             </div>
 
-            {% if user.can_view_as_teacher %}
-                {% if can_manage %}
+            {% if user.can_view_as_teacher or is_course_observer %}
                 <div class="card shadow mb-4">
                     <div class="card-header">
-                        <h5><i class="fas fa-users"></i> Gestión de Inscripciones</h5>
+                        <h5><i class="fas fa-users"></i>
+                            {% if can_manage %}Gestión de Inscripciones{% else %}Alumnos Inscriptos{% endif %}
+                        </h5>
                     </div>
                     <div class="card-body">
                         {% if enrollments %}
@@ -225,7 +224,7 @@
                                         <th>Estudiante</th>
                                         <th>Estado</th>
                                         <th>Fecha de Solicitud</th>
-                                        <th>Acciones</th>
+                                        {% if can_manage %}<th>Acciones</th>{% endif %}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -242,6 +241,7 @@
                                             {% endif %}
                                         </td>
                                         <td>{{ enrollment.enrolled_at|date:"d/m/Y H:i" }}</td>
+                                        {% if can_manage %}
                                         <td>
                                             <div class="btn-group" role="group">
                                                 {% if enrollment.status != 'approved' %}
@@ -268,6 +268,7 @@
                                                 </form>
                                             </div>
                                         </td>
+                                        {% endif %}
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -278,7 +279,6 @@
                         {% endif %}
                     </div>
                 </div>
-                {% endif %}
             {% endif %}
         </div>
 
@@ -298,9 +298,10 @@
                         <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary w-100 mb-2">
                             <i class="fas fa-arrow-left"></i> Volver a Cursos
                         </a>
-                    {% elif user.can_view_as_teacher %}
+                    {% elif user.can_view_as_teacher or is_course_observer %}
                         <a href="{% url 'units:unit_list' course.id %}" class="btn btn-primary w-100 mb-2">
-                            <i class="fas fa-book-open"></i> Gestionar Unidades
+                            <i class="fas fa-book-open"></i>
+                            {% if can_manage %}Gestionar Unidades{% else %}Ver Unidades{% endif %}
                         </a>
                         {% if can_manage %}
                         <a href="{% url 'attendance:attendance_take' course.id %}" class="btn btn-outline-primary w-100 mb-2">
@@ -328,9 +329,15 @@
                         <a href="{% url 'forum_list' course.id %}" class="btn btn-outline-info w-100 mb-2">
                             <i class="fas fa-comments"></i> Foro del Curso
                         </a>
+                        {% if user.can_view_as_teacher %}
                         <a href="{% url 'course_list_teacher' %}" class="btn btn-secondary w-100 mb-2">
                             <i class="fas fa-arrow-left"></i> Volver a Cursos
                         </a>
+                        {% else %}
+                        <a href="{% url 'dashboard' %}" class="btn btn-secondary w-100 mb-2">
+                            <i class="fas fa-arrow-left"></i> Volver al Inicio
+                        </a>
+                        {% endif %}
                     {% endif %}
 
                     {% if user.is_student %}
