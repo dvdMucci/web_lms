@@ -456,6 +456,13 @@ def dashboard(request):
                 .order_by('available_until', 'title')[:12]
             )
 
+    # Cursos que el usuario observa de forma específica (no global observers)
+    if not request.user.can_view_as_teacher() and not viewing_as_student:
+        from courses.models import Course as CourseModel
+        observed = CourseModel.objects.filter(observers=request.user).order_by('title')
+        if observed.exists():
+            context['observed_courses'] = observed
+
     # Si el usuario es administrador, incluir información de almacenamiento
     if request.user.can_manage_users():
         try:

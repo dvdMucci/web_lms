@@ -8,6 +8,7 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 from django.utils import timezone
 from .models import Course, Enrollment
+from .utils import can_view_course_as_teacher
 from accounts.models import UserActivityLog
 from accounts.activity import log_user_activity
 from core.notifications import (
@@ -396,8 +397,15 @@ def course_detail(request, course_id):
     
     viewing_as_student = getattr(request, 'viewing_as_student', False)
 
-    # For students (or teachers in student-view mode)
-    if request.user.is_student() or viewing_as_student:
+    # Course-specific observer: a user explicitly added as observer for this course.
+    # They see the teacher read-only view regardless of their user_type.
+    is_course_obs = (
+        not request.user.can_view_as_teacher()
+        and course.is_course_observer(request.user)
+    )
+
+    # For students (or teachers in student-view mode) — but NOT course observers
+    if (request.user.is_student() or viewing_as_student) and not is_course_obs:
         enrollment = Enrollment.objects.filter(
             student=request.user,
             course=course
@@ -421,31 +429,44 @@ def course_detail(request, course_id):
             context['participants'] = participants
             context['collaborators'] = course.collaborators.all()
 
-    # For teachers/admins (not in student-view mode)
-    elif request.user.can_view_as_teacher():
-        # Check if user can manage this course
+    # For teachers/admins/observers (global or course-specific, not in student-view mode)
+    elif can_view_course_as_teacher(request.user, course):
+        # Check if user can manage this course (observers can never manage)
         can_manage = (
-            course.instructor == request.user or
-            request.user in course.collaborators.all() or
-            request.user.user_type == 'admin'
+            not is_course_obs and (
+                course.instructor == request.user or
+                request.user in course.collaborators.all() or
+                request.user.user_type == 'admin'
+            )
         )
         context['can_manage'] = can_manage
-        
+        context['is_course_observer'] = is_course_obs
+
         # Get all enrollments
         enrollments = Enrollment.objects.filter(
             course=course
         ).select_related('student').order_by('-enrolled_at')
         context['enrollments'] = enrollments
-        
+
         # Get collaborators
         context['collaborators'] = course.collaborators.all()
-        
-        # Get all teachers for adding as collaborators
+
+        # Get all teachers for adding as collaborators, and all users for adding as observers
         from django.contrib.auth import get_user_model
         User = get_user_model()
         all_teachers = User.objects.filter(user_type='teacher').exclude(id=course.instructor.id)
         context['all_teachers'] = all_teachers
-    
+
+        if can_manage:
+            # Users that can be added as course observers (everyone except instructor/collaborators/existing observers)
+            existing_observer_ids = list(course.observers.values_list('pk', flat=True))
+            collaborator_ids = list(course.collaborators.values_list('pk', flat=True))
+            candidate_observers = User.objects.exclude(
+                pk__in=[course.instructor.pk] + collaborator_ids + existing_observer_ids
+            ).order_by('last_name', 'first_name', 'username')
+            context['course_observers'] = course.observers.all().order_by('last_name', 'first_name')
+            context['candidate_observers'] = candidate_observers
+
     return render(request, 'courses/course_detail.html', context)
 
 
@@ -673,4 +694,79 @@ def remove_collaborator(request, course_id, teacher_id):
     
     course.collaborators.remove(teacher)
     messages.success(request, f'{teacher.get_full_name() or teacher.username} eliminado como colaborador exitosamente.')
+    return redirect('course_detail', course_id=course_id)
+
+
+# ─────────────────────────────────────────────────────────────
+# Course-specific observer management
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["POST"])
+def add_course_observer(request, course_id):
+    """Add a user as a course-specific observer - only instructor or admin."""
+    course = get_object_or_404(Course, id=course_id)
+
+    if not (course.instructor == request.user or request.user.user_type == 'admin'):
+        messages.error(request, 'Solo el instructor o un administrador pueden agregar observadores.')
+        return redirect('course_detail', course_id=course_id)
+
+    user_id = request.POST.get('user_id')
+    if not user_id:
+        messages.error(request, 'Debes seleccionar un usuario.')
+        return redirect('course_detail', course_id=course_id)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    observer = get_object_or_404(User, id=user_id)
+
+    if observer == course.instructor:
+        messages.error(request, 'El instructor ya tiene acceso completo al curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    if observer in course.collaborators.all():
+        messages.error(request, 'Este usuario ya es colaborador del curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    if course.is_course_observer(observer):
+        messages.warning(request, f'{observer.get_full_name() or observer.username} ya es observador de este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    course.observers.add(observer)
+    messages.success(request, f'{observer.get_full_name() or observer.username} agregado como observador del curso.')
+    log_user_activity(
+        user=request.user,
+        action='course_observer_add',
+        details=f'Observador "{observer.username}" agregado al curso "{course.title}"',
+        request=request,
+    )
+    return redirect('course_detail', course_id=course_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def remove_course_observer(request, course_id, user_id):
+    """Remove a course-specific observer - only instructor or admin."""
+    course = get_object_or_404(Course, id=course_id)
+
+    if not (course.instructor == request.user or request.user.user_type == 'admin'):
+        messages.error(request, 'Solo el instructor o un administrador pueden eliminar observadores.')
+        return redirect('course_detail', course_id=course_id)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    observer = get_object_or_404(User, id=user_id)
+
+    if not course.is_course_observer(observer):
+        messages.warning(request, f'{observer.get_full_name() or observer.username} no es observador de este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    course.observers.remove(observer)
+    messages.success(request, f'{observer.get_full_name() or observer.username} eliminado como observador del curso.')
+    log_user_activity(
+        user=request.user,
+        action='course_observer_remove',
+        details=f'Observador "{observer.username}" eliminado del curso "{course.title}"',
+        request=request,
+    )
     return redirect('course_detail', course_id=course_id)

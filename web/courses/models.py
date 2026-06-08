@@ -18,6 +18,12 @@ class Course(models.Model):
         blank=True,
         verbose_name='Docentes Colaboradores'
     )
+    observers = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='observed_courses',
+        blank=True,
+        verbose_name='Observadores de Curso'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
     enrollment_limit = models.PositiveIntegerField(
@@ -85,6 +91,10 @@ class Course(models.Model):
     def is_instructor_or_collaborator(self, user):
         """Check if user is the instructor or a collaborator of the course"""
         return self.instructor == user or user in self.collaborators.all()
+
+    def is_course_observer(self, user):
+        """Check if user is a course-specific observer (read-only access for this course only)."""
+        return self.observers.filter(pk=user.pk).exists()
     
     def is_visible_to_students(self):
         """Check if course is visible to students (active and not paused)"""

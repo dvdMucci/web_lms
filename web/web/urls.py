@@ -45,6 +45,10 @@ urlpatterns = [
         # Collaborator management
         path('<int:course_id>/collaborators/add/', course_views.add_collaborator, name='add_collaborator'),
         path('<int:course_id>/collaborators/<int:teacher_id>/remove/', course_views.remove_collaborator, name='remove_collaborator'),
+
+        # Course-specific observer management
+        path('<int:course_id>/observers/add/', course_views.add_course_observer, name='add_course_observer'),
+        path('<int:course_id>/observers/<int:user_id>/remove/', course_views.remove_course_observer, name='remove_course_observer'),
         
         # Student URLs
         path('available/', course_views.course_list_student, name='course_list_student'),

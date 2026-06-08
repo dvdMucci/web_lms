@@ -23,6 +23,7 @@ from .models import (
 )
 from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
 from courses.models import Course, Enrollment
+from courses.utils import can_view_course_as_teacher
 from units.models import Unit, Tema
 from accounts.models import UserActivityLog
 from accounts.activity import log_user_activity
@@ -263,7 +264,8 @@ def assignment_list(request, course_id, unit_id, tema_id):
     
     # Check if user can view the theme
     can_view = False
-    if request.user.can_view_as_teacher():
+    viewer_is_teacher = can_view_course_as_teacher(request.user, course)
+    if viewer_is_teacher:
         can_view = True
     elif request.user.is_student():
         enrollment = Enrollment.objects.filter(
@@ -272,13 +274,13 @@ def assignment_list(request, course_id, unit_id, tema_id):
             status='approved'
         ).first()
         can_view = enrollment is not None and tema.is_visible_to_students()
-    
+
     if not can_view:
         messages.error(request, 'No tienes permiso para ver las tareas de este tema.')
         return redirect('units:tema_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
-    
-    # Get assignments - teachers see all, students only active and published
-    if request.user.can_view_as_teacher():
+
+    # Get assignments - teachers/observers see all, students only active and published
+    if viewer_is_teacher:
         assignments = Assignment.objects.filter(tema=tema).order_by('due_date', 'created_at')
     else:
         from django.db.models import Q, Count
@@ -541,7 +543,8 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
     
     # Check if user can view
     can_view = False
-    if request.user.can_view_as_teacher():
+    viewer_is_teacher = can_view_course_as_teacher(request.user, course)
+    if viewer_is_teacher:
         can_view = True
     elif request.user.is_student():
         enrollment = Enrollment.objects.filter(
@@ -554,13 +557,13 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
             can_view = not target_ids or request.user.id in target_ids
         else:
             can_view = False
-    
+
     if not can_view:
         messages.error(request, 'No tienes permiso para ver esta tarea.')
         return redirect('assignments:assignment_list', course_id=course_id, unit_id=unit_id, tema_id=tema_id)
-    
+
     viewing_as_student = getattr(request, 'viewing_as_student', False)
-    is_teacher = (request.user.can_view_as_teacher()) and not viewing_as_student
+    is_teacher = viewer_is_teacher and not viewing_as_student
     can_manage = assignment.can_be_managed_by(request.user) and not viewing_as_student
 
     context = {
@@ -821,12 +824,12 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
         assignment=assignment,
     )
 
-    # Check permissions: student can only see their own, teacher can see all
+    # Check permissions: student can only see their own, teacher/observer can see all
     if request.user.is_student():
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
             return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    elif not (request.user.can_view_as_teacher()):
+    elif not can_view_course_as_teacher(request.user, course):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
@@ -876,7 +879,7 @@ def submission_detail(request, course_id, unit_id, tema_id, assignment_id, submi
             submission.student == request.user or
             request.user in collaborator_students
         )
-    elif request.user.can_view_as_teacher():
+    elif can_view_course_as_teacher(request.user, course):
         can_comment = can_manage
     
     # Handle comment form submission
@@ -1052,7 +1055,7 @@ def _submission_serve_file(request, course_id, unit_id, tema_id, assignment_id, 
                 tema_id=tema_id,
                 assignment_id=assignment_id,
             )
-    elif not (request.user.can_view_as_teacher()):
+    elif not can_view_course_as_teacher(request.user, course):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect(
             'assignments:assignment_detail',
@@ -1139,7 +1142,7 @@ def submission_docx_viewer(request, course_id, unit_id, tema_id, assignment_id, 
         if submission.student != request.user:
             messages.error(request, 'No tienes permiso para ver esta entrega.')
             return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
-    elif not (request.user.can_view_as_teacher()):
+    elif not can_view_course_as_teacher(request.user, course):
         messages.error(request, 'No tienes permiso para ver esta entrega.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
 

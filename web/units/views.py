@@ -9,6 +9,7 @@ import os
 from .models import Unit, Tema
 from .forms import UnitForm, TemaForm, MaterialUploadForm, MaterialEditForm
 from courses.models import Course, Enrollment
+from courses.utils import can_view_course_as_teacher
 from accounts.models import UserActivityLog
 from accounts.activity import log_user_activity
 
@@ -19,7 +20,8 @@ def unit_list(request, course_id):
     
     # Check if user can view the course
     can_view = False
-    if request.user.can_view_as_teacher():
+    viewer_is_teacher = can_view_course_as_teacher(request.user, course)
+    if viewer_is_teacher:
         can_view = True
     elif request.user.is_student():
         # Check if student is enrolled and approved
@@ -29,16 +31,16 @@ def unit_list(request, course_id):
             status='approved'
         ).first()
         can_view = enrollment is not None
-    
+
     if not can_view:
         messages.error(request, 'No tienes permiso para ver las unidades de este curso.')
         if request.user.is_student():
             return redirect('course_list_student')
         else:
             return redirect('course_list_teacher')
-    
-    # Get units - teachers see all, students only non-paused
-    if request.user.can_view_as_teacher():
+
+    # Get units - teachers/observers see all, students only non-paused
+    if viewer_is_teacher:
         units = Unit.objects.filter(course=course).order_by('order', 'created_at')
     else:
         units = Unit.objects.filter(course=course, is_paused=False).order_by('order', 'created_at')
@@ -198,7 +200,8 @@ def unit_detail(request, course_id, unit_id):
     
     # Check if user can view the unit
     can_view = False
-    if request.user.can_view_as_teacher():
+    viewer_is_teacher = can_view_course_as_teacher(request.user, course)
+    if viewer_is_teacher:
         can_view = True
     elif request.user.is_student():
         # Check if student is enrolled and approved, and unit is not paused
@@ -208,17 +211,17 @@ def unit_detail(request, course_id, unit_id):
             status='approved'
         ).first()
         can_view = enrollment is not None and unit.is_visible_to_students()
-    
+
     if not can_view:
         messages.error(request, 'No tienes permiso para ver esta unidad.')
         if request.user.is_student():
             return redirect('course_list_student')
         else:
             return redirect('course_list_teacher')
-    
+
     # Get themes for this unit
     viewing_as_student = getattr(request, 'viewing_as_student', False)
-    if (request.user.can_view_as_teacher()) and not viewing_as_student:
+    if viewer_is_teacher and not viewing_as_student:
         temas = Tema.objects.filter(unit=unit).order_by('order', 'created_at')
     else:
         temas = Tema.objects.filter(unit=unit, is_paused=False).order_by('order', 'created_at')
@@ -244,7 +247,8 @@ def tema_detail(request, course_id, unit_id, tema_id):
     tema = get_object_or_404(Tema, id=tema_id, unit=unit)
 
     can_view = False
-    if request.user.can_view_as_teacher():
+    viewer_is_teacher = can_view_course_as_teacher(request.user, course)
+    if viewer_is_teacher:
         can_view = True
     elif request.user.is_student():
         enrollment = Enrollment.objects.filter(
@@ -262,7 +266,7 @@ def tema_detail(request, course_id, unit_id, tema_id):
 
     from materials.models import Material
     viewing_as_student = getattr(request, 'viewing_as_student', False)
-    is_manager = (request.user.can_view_as_teacher()) and not viewing_as_student
+    is_manager = viewer_is_teacher and not viewing_as_student
     can_manage = tema.can_be_managed_by(request.user) and not viewing_as_student
 
     if is_manager:
