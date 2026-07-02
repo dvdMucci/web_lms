@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Max
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.utils import timezone
 import os
 from .models import Unit, Tema
@@ -87,7 +88,6 @@ def unit_create(request, course_id):
             try:
                 unit.save()
             except ValidationError as e:
-                # Handle validation errors
                 if hasattr(e, 'error_dict'):
                     for field, errors in e.error_dict.items():
                         for error in errors:
@@ -100,12 +100,20 @@ def unit_create(request, course_id):
                     'title': 'Crear Unidad',
                 }
                 return render(request, 'units/unit_form.html', context)
+            except IntegrityError:
+                messages.error(request, 'Ya existe una unidad con ese número de orden. Cambiá el número e intentá de nuevo.')
+                context = {
+                    'form': form,
+                    'course': course,
+                    'title': 'Crear Unidad',
+                }
+                return render(request, 'units/unit_form.html', context)
             messages.success(request, f'Unidad "{unit.title}" creada exitosamente.')
             return redirect('units:unit_list', course_id=course_id)
     else:
         # Get next order number
         max_order = Unit.objects.filter(course=course).aggregate(Max('order'))['order__max']
-        next_order = (max_order or -1) + 1
+        next_order = (max_order + 1) if max_order is not None else 0
         form = UnitForm(user=request.user, course=course, initial={'order': next_order})
     
     context = {
