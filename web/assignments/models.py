@@ -74,6 +74,13 @@ class Assignment(models.Model):
         verbose_name='Enviar Notificación por Correo',
         help_text='Si está activado, se enviará un correo a los estudiantes cuando se publique la tarea'
     )
+    target_students = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='targeted_assignments',
+        verbose_name='Alumnos destinatarios',
+        help_text='Si se deja vacío, la tarea es visible para todos los alumnos inscriptos. Si se seleccionan alumnos específicos, solo ellos verán la tarea.'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
 

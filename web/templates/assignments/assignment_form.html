@@ -92,6 +92,50 @@
                         </div>
 
                         <hr class="my-4">
+                        <h6 class="text-muted mb-3"><i class="fas fa-users"></i> Destinatarios</h6>
+
+                        <div class="mb-3">
+                            <div class="mb-2 d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="audience_type" id="audience_all" value="all"
+                                        {% if not form.target_students.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="audience_all">
+                                        <i class="fas fa-users"></i> Todos los alumnos del curso
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="audience_type" id="audience_specific" value="specific"
+                                        {% if form.target_students.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="audience_specific">
+                                        <i class="fas fa-user-check"></i> Alumnos específicos
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="specific-students-panel" class="{% if not form.target_students.value %}d-none{% endif %}">
+                                <div class="card card-body bg-light border mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="text-muted">{{ form.target_students.help_text }}</small>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" id="select-all-students">Seleccionar todos</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="deselect-all-students">Deseleccionar todos</button>
+                                        </div>
+                                    </div>
+                                    {% if form.target_students.field.queryset.exists %}
+                                        <div style="max-height: 220px; overflow-y: auto;">
+                                            {{ form.target_students }}
+                                        </div>
+                                    {% else %}
+                                        <p class="text-muted mb-0"><i class="fas fa-info-circle"></i> No hay alumnos inscriptos en este curso aún.</p>
+                                    {% endif %}
+                                    {% if form.target_students.errors %}
+                                        <div class="text-danger mt-1">{{ form.target_students.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
                         <h6 class="text-muted mb-3"><i class="fas fa-calendar-alt"></i> Publicación</h6>
 
                         <div class="mb-3 form-check">
@@ -168,4 +212,30 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const radios = document.querySelectorAll('input[name="audience_type"]');
+    const panel = document.getElementById('specific-students-panel');
+    const checkboxes = () => panel.querySelectorAll('input[type="checkbox"]');
+
+    radios.forEach(r => r.addEventListener('change', function () {
+        if (this.value === 'specific') {
+            panel.classList.remove('d-none');
+        } else {
+            panel.classList.add('d-none');
+            checkboxes().forEach(cb => cb.checked = false);
+        }
+    }));
+
+    document.getElementById('select-all-students')?.addEventListener('click', function () {
+        checkboxes().forEach(cb => cb.checked = true);
+    });
+    document.getElementById('deselect-all-students')?.addEventListener('click', function () {
+        checkboxes().forEach(cb => cb.checked = false);
+    });
+})();
+</script>
 {% endblock %}

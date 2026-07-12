@@ -86,7 +86,11 @@
                         {% for row in rows %}
                         <tr>
                             <td>{{ row.course.title }}</td>
-                            <td>{{ row.student.get_full_name|default:row.student.username }}</td>
+                            <td>
+                                <a href="{% url 'assignments:student_deliveries' row.course.id row.student.id %}" title="Ver entregas del alumno">
+                                    {{ row.student.get_full_name|default:row.student.username }}
+                                </a>
+                            </td>
                             <td class="text-center">{{ row.total_assignments }}</td>
                             <td class="text-center">{{ row.submitted_count }}</td>
                             <td class="text-center">

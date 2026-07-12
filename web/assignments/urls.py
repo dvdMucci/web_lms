@@ -5,6 +5,11 @@ app_name = "assignments"
 
 urlpatterns = [
     path('assignments/teacher/submission-report/', views.teacher_submission_report, name='teacher_submission_report'),
+    path(
+        'courses/<int:course_id>/students/<int:student_id>/deliveries/',
+        views.student_deliveries,
+        name='student_deliveries',
+    ),
     # Assignment CRUD
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/', views.assignment_list, name='assignment_list'),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/create/', views.assignment_create, name='assignment_create'),

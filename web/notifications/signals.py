@@ -5,6 +5,34 @@ from django.utils import timezone
 from datetime import timedelta
 
 
+def notify_assignment_bell(assignment):
+    """Create bell notifications for an assignment respecting target_students.
+    Call this AFTER save_m2m() so the M2M relation is already persisted.
+    """
+    from courses.models import Enrollment
+    course = assignment.course
+    tema = assignment.tema
+    unit = tema.unit
+    url = reverse('assignments:assignment_detail', kwargs={
+        'course_id': course.id,
+        'unit_id': unit.id,
+        'tema_id': tema.id,
+        'assignment_id': assignment.id,
+    })
+    target_ids = list(assignment.target_students.values_list('id', flat=True))
+    enrolled_students = Enrollment.objects.filter(course=course, status='approved').select_related('student')
+    for enrollment in enrolled_students:
+        if target_ids and enrollment.student_id not in target_ids:
+            continue
+        create_notification(
+            user=enrollment.student,
+            notification_type='assignment',
+            title=f'Nueva tarea: "{assignment.title}"',
+            message=f'Se publicó una nueva tarea en {course.title}.',
+            url=url,
+        )
+
+
 def create_notification(user, notification_type, title, message, url=''):
     """Create a notification, avoiding duplicates within 10 minutes."""
     from notifications.models import Notification
@@ -225,6 +253,9 @@ def on_assignment_pre_save(sender, instance, **kwargs):
 def on_assignment_published(sender, instance, created, **kwargs):
     try:
         was_published = getattr(instance, '_was_published', False)
+        # Skip when called from form views — they call notify_assignment_bell() after save_m2m()
+        if getattr(instance, '_skip_published_notification', False):
+            return
         if instance.is_published and (created or not was_published):
             from courses.models import Enrollment
             tema = instance.tema
@@ -242,7 +273,11 @@ def on_assignment_published(sender, instance, created, **kwargs):
                 course=course, status='approved'
             ).select_related('student')
 
+            target_ids = list(instance.target_students.values_list('id', flat=True))
+
             for enrollment in enrolled_students:
+                if target_ids and enrollment.student_id not in target_ids:
+                    continue
                 create_notification(
                     user=enrollment.student,
                     notification_type='assignment',

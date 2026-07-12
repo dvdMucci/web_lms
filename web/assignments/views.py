@@ -256,6 +256,182 @@ def teacher_submission_report(request):
 
 
 @login_required
+def student_deliveries(request, course_id, student_id):
+    """Teacher overview of one student's assignments and delivery status in a course."""
+    course = get_object_or_404(Course, id=course_id)
+    if not can_view_course_as_teacher(request.user, course):
+        messages.error(request, 'No tenés permiso para ver las entregas de este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    student = get_object_or_404(User, id=student_id, user_type='student')
+    enrollment = Enrollment.objects.filter(
+        course=course,
+        student=student,
+        status='approved',
+    ).first()
+    if not enrollment:
+        messages.error(request, 'El alumno no está inscripto en este curso.')
+        return redirect('course_detail', course_id=course_id)
+
+    unit_id_raw = request.GET.get('unit', '').strip()
+    tema_id_raw = request.GET.get('tema', '').strip()
+    selected_unit_id = None
+    selected_tema_id = None
+
+    units = Unit.objects.filter(course=course).order_by('order', 'pk')
+    temas_by_unit = {}
+    for row in Tema.objects.filter(unit__course=course).order_by(
+        'unit_id', 'order', 'pk'
+    ).values('id', 'title', 'unit_id'):
+        key = str(row['unit_id'])
+        temas_by_unit.setdefault(key, []).append(
+            {'id': row['id'], 'title': row['title']}
+        )
+    temas_by_unit_json = mark_safe(json.dumps(temas_by_unit, ensure_ascii=False))
+
+    assignments_qs = Assignment.objects.filter(course=course).annotate(
+        target_count=Count('target_students')
+    ).filter(
+        Q(target_count=0) | Q(target_students=student)
+    ).distinct().select_related('tema', 'tema__unit')
+
+    if unit_id_raw:
+        try:
+            uid = int(unit_id_raw)
+        except ValueError:
+            uid = None
+        if uid is not None:
+            if units.filter(pk=uid).exists():
+                selected_unit_id = uid
+                assignments_qs = assignments_qs.filter(tema__unit_id=uid)
+            else:
+                messages.warning(request, 'La unidad seleccionada no pertenece a este curso.')
+
+    if tema_id_raw:
+        try:
+            tid = int(tema_id_raw)
+        except ValueError:
+            tid = None
+        if tid is not None:
+            tema_obj = Tema.objects.filter(pk=tid, unit__course=course).select_related('unit').first()
+            if not tema_obj:
+                messages.warning(request, 'El tema seleccionado no pertenece a este curso.')
+            elif selected_unit_id and tema_obj.unit_id != selected_unit_id:
+                messages.warning(request, 'El tema no pertenece a la unidad seleccionada.')
+            else:
+                selected_tema_id = tid
+                if not selected_unit_id:
+                    selected_unit_id = tema_obj.unit_id
+                assignments_qs = assignments_qs.filter(tema_id=tid)
+
+    assignments_qs = assignments_qs.order_by(
+        'tema__unit__order',
+        'tema__unit_id',
+        'tema__order',
+        'tema_id',
+        'due_date',
+        'created_at',
+    )
+    assignments = list(assignments_qs)
+    assignment_ids = [a.id for a in assignments]
+
+    latest_by_assignment = {}
+    if assignment_ids:
+        for submission in AssignmentSubmission.objects.filter(
+            assignment_id__in=assignment_ids,
+            student=student,
+        ).select_related('assignment').prefetch_related('attachment_files').order_by(
+            'assignment_id', '-version'
+        ):
+            if submission.assignment_id not in latest_by_assignment:
+                latest_by_assignment[submission.assignment_id] = {
+                    'submission': submission,
+                    'is_collaborator': False,
+                }
+
+        missing_group_ids = [
+            a.id for a in assignments
+            if a.allow_group_work and a.id not in latest_by_assignment
+        ]
+        if missing_group_ids:
+            for collab in AssignmentCollaborator.objects.filter(
+                student=student,
+                submission__assignment_id__in=missing_group_ids,
+            ).select_related('submission', 'submission__assignment').prefetch_related(
+                'submission__attachment_files'
+            ).order_by('submission__assignment_id', '-submission__version'):
+                aid = collab.submission.assignment_id
+                if aid not in latest_by_assignment:
+                    latest_by_assignment[aid] = {
+                        'submission': collab.submission,
+                        'is_collaborator': True,
+                    }
+
+    now = timezone.now()
+    rows = []
+    submitted_count = 0
+    pending_count = 0
+    on_time_count = 0
+    feedback_count = 0
+
+    for assignment in assignments:
+        entry = latest_by_assignment.get(assignment.id)
+        latest_submission = entry['submission'] if entry else None
+        is_collaborator = entry['is_collaborator'] if entry else False
+        has_submitted = latest_submission is not None
+
+        is_late = False
+        has_feedback = False
+        needs_resubmission = False
+        due_passed = assignment.due_date is not None and now > assignment.due_date
+
+        if has_submitted:
+            submitted_count += 1
+            is_late = latest_submission.is_late()
+            if not is_late:
+                on_time_count += 1
+            has_feedback = (
+                latest_submission.feedback_given_at is not None
+                or bool(latest_submission.feedback and latest_submission.feedback.strip())
+            )
+            if has_feedback:
+                feedback_count += 1
+            needs_resubmission = bool(latest_submission.needs_resubmission)
+        else:
+            pending_count += 1
+
+        unit = assignment.tema.unit if assignment.tema_id else None
+        rows.append({
+            'assignment': assignment,
+            'unit': unit,
+            'tema': assignment.tema,
+            'has_submitted': has_submitted,
+            'latest_submission': latest_submission,
+            'is_collaborator': is_collaborator,
+            'is_late': is_late,
+            'has_feedback': has_feedback,
+            'needs_resubmission': needs_resubmission,
+            'due_passed': due_passed,
+        })
+
+    context = {
+        'course': course,
+        'student': student,
+        'units': units,
+        'temas_by_unit_json': temas_by_unit_json,
+        'selected_unit_id': selected_unit_id,
+        'selected_tema_id': selected_tema_id,
+        'rows': rows,
+        'total_assignments': len(rows),
+        'submitted_count': submitted_count,
+        'pending_count': pending_count,
+        'on_time_count': on_time_count,
+        'feedback_count': feedback_count,
+    }
+    return render(request, 'assignments/student_deliveries.html', context)
+
+
+@login_required
 def assignment_list(request, course_id, unit_id, tema_id):
     """List all assignments for a theme"""
     course = get_object_or_404(Course, id=course_id)

@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+
+{% block title %}Entregas de {{ student.get_full_name|default:student.username }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-folder-open"></i> Entregas del Alumno</h1>
+            <p class="text-muted mb-0">
+                <i class="fas fa-user"></i> {{ student.get_full_name|default:student.username }}
+                &mdash; {{ course.title }}
+            </p>
+        </div>
+        <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Curso
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>Filtros</strong>
+            <div class="text-muted small">Podés filtrar por unidad y tema. Pulsá <strong>Aplicar</strong> para actualizar el listado.</div>
+        </div>
+        <div class="card-body">
+            <form id="student-deliveries-filters" method="get" class="row g-3 align-items-end"
+                  data-initial-unit="{% if selected_unit_id %}{{ selected_unit_id }}{% endif %}"
+                  data-initial-tema="{% if selected_tema_id %}{{ selected_tema_id }}{% endif %}">
+                <div class="col-md-4">
+                    <label for="unit" class="form-label">Unidad</label>
+                    <select id="unit" name="unit" class="form-select">
+                        <option value="">Todas las unidades</option>
+                        {% for u in units %}
+                        <option value="{{ u.id }}" {% if selected_unit_id == u.id %}selected{% endif %}>{{ u.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="tema" class="form-label">Tema</label>
+                    <select id="tema" name="tema" class="form-select">
+                        <option value="">—</option>
+                    </select>
+                    <small class="text-muted">Si elegís una unidad, solo se muestran sus temas.</small>
+                </div>
+                <div class="col-md-4 d-flex gap-2 flex-wrap">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> Aplicar
+                    </button>
+                    <a href="{% url 'assignments:student_deliveries' course.id student.id %}" class="btn btn-outline-secondary">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3 col-6 mb-2">
+            <div class="card shadow h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Total tareas</div>
+                    <div class="fs-4"><span class="badge bg-secondary">{{ total_assignments }}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="card shadow h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Entregadas</div>
+                    <div class="fs-4"><span class="badge bg-success">{{ submitted_count }}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="card shadow h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">Pendientes</div>
+                    <div class="fs-4"><span class="badge bg-danger">{{ pending_count }}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="card shadow h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">A tiempo / Con devolución</div>
+                    <div class="fs-5">
+                        <span class="badge bg-success" title="A tiempo">{{ on_time_count }}</span>
+                        <span class="badge bg-info" title="Con devolución">{{ feedback_count }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-list-check"></i> Detalle de entregas</h5>
+        </div>
+        <div class="card-body">
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Unidad</th>
+                            <th>Tema</th>
+                            <th>Tarea</th>
+                            <th>Fecha límite</th>
+                            <th>Entrega</th>
+                            <th>Puntualidad</th>
+                            <th>Devolución</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in rows %}
+                        <tr>
+                            <td>{{ item.unit.title|default:"—" }}</td>
+                            <td>{{ item.tema.title|default:"—" }}</td>
+                            <td>
+                                <strong>{{ item.assignment.title }}</strong>
+                                {% if item.is_collaborator %}
+                                <span class="badge bg-secondary ms-1" title="Entrega colaborativa">Colaborador</span>
+                                {% endif %}
+                                {% if item.needs_resubmission %}
+                                <br><span class="badge bg-warning mt-1">
+                                    <i class="fas fa-redo"></i> Requiere Reentrega
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.assignment.due_date|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if item.has_submitted %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check"></i> Entregado
+                                </span>
+                                <br><small class="text-muted">{{ item.latest_submission.submitted_at|date:"d/m/Y H:i" }}</small>
+                                {% else %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times"></i> No Entregado
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.has_submitted %}
+                                    {% if item.is_late %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-exclamation-triangle"></i> Fuera de Término
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-clock"></i> A tiempo
+                                    </span>
+                                    {% endif %}
+                                {% elif item.due_passed %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-calendar-times"></i> Vencida
+                                </span>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.has_submitted %}
+                                    {% if item.has_feedback %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-comment-dots"></i> Con devolución
+                                    </span>
+                                    {% if item.latest_submission.feedback_given_at %}
+                                    <br><small class="text-muted">{{ item.latest_submission.feedback_given_at|date:"d/m/Y H:i" }}</small>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-comment-slash"></i> Sin devolución
+                                    </span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.has_submitted and item.unit and item.tema %}
+                                <a href="{% url 'assignments:submission_detail' course.id item.unit.id item.tema.id item.assignment.id item.latest_submission.id %}"
+                                   class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                    <i class="fas fa-info-circle"></i> Detalles
+                                </a>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">No hay tareas para mostrar con los filtros actuales.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="temas-by-unit-data">{{ temas_by_unit_json }}</script>
+<script>
+(function () {
+    function readTemasByUnit() {
+        var el = document.getElementById('temas-by-unit-data');
+        if (!el) return {};
+        try {
+            return JSON.parse(el.textContent);
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function refillTemas(unitEl, temaEl, applyInitial) {
+        var temasByUnit = readTemasByUnit();
+        var form = document.getElementById('student-deliveries-filters');
+        var uid = unitEl.value;
+        var initialTema = applyInitial && form ? (form.getAttribute('data-initial-tema') || '') : '';
+
+        temaEl.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+
+        if (!uid) {
+            opt0.textContent = 'Todos los temas';
+            temaEl.appendChild(opt0);
+            var allTemas = [];
+            Object.keys(temasByUnit).forEach(function (key) {
+                var list = temasByUnit[key] || [];
+                for (var i = 0; i < list.length; i++) {
+                    allTemas.push(list[i]);
+                }
+            });
+            allTemas.sort(function (a, b) {
+                return String(a.title).localeCompare(String(b.title), 'es');
+            });
+            for (var j = 0; j < allTemas.length; j++) {
+                var o = document.createElement('option');
+                o.value = String(allTemas[j].id);
+                o.textContent = allTemas[j].title;
+                temaEl.appendChild(o);
+            }
+        } else {
+            opt0.textContent = 'Todos los temas de la unidad';
+            temaEl.appendChild(opt0);
+            var list = temasByUnit[uid] || [];
+            for (var k = 0; k < list.length; k++) {
+                var opt = document.createElement('option');
+                opt.value = String(list[k].id);
+                opt.textContent = list[k].title;
+                temaEl.appendChild(opt);
+            }
+        }
+
+        if (initialTema) {
+            temaEl.value = String(initialTema);
+            if (temaEl.value !== String(initialTema)) {
+                temaEl.value = '';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var unitEl = document.getElementById('unit');
+        var temaEl = document.getElementById('tema');
+        if (!unitEl || !temaEl) return;
+
+        refillTemas(unitEl, temaEl, true);
+        unitEl.addEventListener('change', function () {
+            refillTemas(unitEl, temaEl, false);
+        });
+    });
+})();
+</script>
+{% endblock %}

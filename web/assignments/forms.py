@@ -12,7 +12,7 @@ class AssignmentForm(forms.ModelForm):
     class Meta:
         model = Assignment
         fields = ['title', 'description', 'due_date', 'final_date', 'allow_group_work', 'is_active',
-                  'is_published', 'scheduled_publish_at', 'send_notification_email']
+                  'is_published', 'scheduled_publish_at', 'send_notification_email', 'target_students']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
@@ -32,6 +32,7 @@ class AssignmentForm(forms.ModelForm):
                 'type': 'datetime-local'
             }),
             'send_notification_email': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'target_students': forms.CheckboxSelectMultiple(attrs={'class': 'target-students-list'}),
         }
         labels = {
             'title': 'Título de la Tarea',
@@ -43,6 +44,7 @@ class AssignmentForm(forms.ModelForm):
             'is_published': 'Publicar Ahora',
             'scheduled_publish_at': 'Publicar Más Tarde (Fecha/Hora)',
             'send_notification_email': 'Enviar Correo de Notificación',
+            'target_students': 'Alumnos destinatarios',
         }
         help_texts = {
             'title': 'Ingrese el título de la tarea',
@@ -54,6 +56,7 @@ class AssignmentForm(forms.ModelForm):
             'is_published': 'Si está activado, la tarea estará disponible para los estudiantes inmediatamente',
             'scheduled_publish_at': 'Opcional: Programe la publicación para una fecha y hora específica. Si se establece, la tarea se publicará automáticamente en ese momento',
             'send_notification_email': 'Si está activado, se enviará un correo a todos los estudiantes inscritos cuando se publique la tarea',
+            'target_students': 'Dejá vacío para que todos los alumnos inscriptos vean la tarea. Seleccioná alumnos específicos para asignarla solo a ellos (ej: para recuperatorios).',
         }
     
     def __init__(self, *args, **kwargs):
@@ -61,6 +64,21 @@ class AssignmentForm(forms.ModelForm):
         self.course = kwargs.pop('course', None)
         self.tema = kwargs.pop('tema', None)
         super().__init__(*args, **kwargs)
+
+        # Populate target_students with enrolled students for this course
+        if self.course:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            enrolled_ids = Enrollment.objects.filter(
+                course=self.course,
+                status='approved',
+            ).values_list('student_id', flat=True)
+            qs = User.objects.filter(id__in=enrolled_ids, user_type='student').order_by('last_name', 'first_name')
+            self.fields['target_students'].queryset = qs
+            self.fields['target_students'].label_from_instance = (
+                lambda u: u.get_full_name() or u.username
+            )
+
         datetime_local_format = '%Y-%m-%dT%H:%M'
 
         # Forzar formato de render para que datetime-local precargue correctamente

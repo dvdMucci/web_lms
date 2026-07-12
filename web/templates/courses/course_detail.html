@@ -224,7 +224,7 @@
                                         <th>Estudiante</th>
                                         <th>Estado</th>
                                         <th>Fecha de Solicitud</th>
-                                        {% if can_manage %}<th>Acciones</th>{% endif %}
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -241,9 +241,14 @@
                                             {% endif %}
                                         </td>
                                         <td>{{ enrollment.enrolled_at|date:"d/m/Y H:i" }}</td>
-                                        {% if can_manage %}
                                         <td>
                                             <div class="btn-group" role="group">
+                                                {% if enrollment.status == 'approved' %}
+                                                <a href="{% url 'assignments:student_deliveries' course.id enrollment.student.id %}" class="btn btn-sm btn-outline-info" title="Ver entregas">
+                                                    <i class="fas fa-folder-open"></i> Entregas
+                                                </a>
+                                                {% endif %}
+                                                {% if can_manage %}
                                                 {% if enrollment.status != 'approved' %}
                                                 <form method="post" action="{% url 'enrollment_approve' course.id enrollment.id %}" class="d-inline">
                                                     {% csrf_token %}
@@ -266,9 +271,9 @@
                                                         <i class="fas fa-trash"></i> Cancelar
                                                     </button>
                                                 </form>
+                                                {% endif %}
                                             </div>
                                         </td>
-                                        {% endif %}
                                     </tr>
                                     {% endfor %}
                                 </tbody>

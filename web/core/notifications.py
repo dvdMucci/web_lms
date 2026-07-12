@@ -371,12 +371,16 @@ def notify_assignment_published(assignment):
     """
     from courses.models import Enrollment
     
-    # Obtener todos los estudiantes inscritos y aprobados en el curso
+    # Obtener estudiantes inscriptos y aprobados; respetar target_students si aplica
     enrollments = Enrollment.objects.filter(
         course=assignment.course,
         status='approved'
     ).select_related('student')
-    
+
+    target_ids = list(assignment.target_students.values_list('id', flat=True))
+    if target_ids:
+        enrollments = enrollments.filter(student_id__in=target_ids)
+
     if not enrollments.exists():
         return 0
     
