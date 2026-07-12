@@ -91,6 +91,27 @@
                             </div>
                         </div>
 
+                        <div class="mb-3 form-check">
+                            {{ form.allow_student_upload }}
+                            <label class="form-check-label" for="{{ form.allow_student_upload.id_for_label }}">
+                                {{ form.allow_student_upload.label }}
+                            </label>
+                            {% if form.allow_student_upload.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.allow_student_upload.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.evaluation_type.id_for_label }}" class="form-label">{{ form.evaluation_type.label }}</label>
+                            {{ form.evaluation_type }}
+                            {% if form.evaluation_type.errors %}
+                                <div class="text-danger">{{ form.evaluation_type.errors }}</div>
+                            {% endif %}
+                            {% if form.evaluation_type.help_text %}
+                                <small class="form-text text-muted">{{ form.evaluation_type.help_text }}</small>
+                            {% endif %}
+                        </div>
+
                         <hr class="my-4">
                         <h6 class="text-muted mb-3"><i class="fas fa-users"></i> Destinatarios</h6>
 

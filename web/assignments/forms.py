@@ -11,8 +11,11 @@ class AssignmentForm(forms.ModelForm):
     
     class Meta:
         model = Assignment
-        fields = ['title', 'description', 'due_date', 'final_date', 'allow_group_work', 'is_active',
-                  'is_published', 'scheduled_publish_at', 'send_notification_email', 'target_students']
+        fields = [
+            'title', 'description', 'due_date', 'final_date',             'allow_group_work',
+            'allow_student_upload', 'evaluation_type', 'is_active', 'is_published',
+            'scheduled_publish_at', 'send_notification_email', 'target_students',
+        ]
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
@@ -25,6 +28,8 @@ class AssignmentForm(forms.ModelForm):
                 'type': 'datetime-local'
             }),
             'allow_group_work': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'allow_student_upload': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'evaluation_type': forms.Select(attrs={'class': 'form-select'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_published': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'scheduled_publish_at': forms.DateTimeInput(attrs={
@@ -40,6 +45,8 @@ class AssignmentForm(forms.ModelForm):
             'due_date': 'Fecha Límite de Entrega',
             'final_date': 'Fecha Final (Opcional - No se podrán subir más archivos después de esta fecha)',
             'allow_group_work': 'Permitir Trabajo en Grupo',
+            'allow_student_upload': 'Permitir que el alumno suba archivos',
+            'evaluation_type': 'Forma de evaluación',
             'is_active': 'Tarea Activa',
             'is_published': 'Publicar Ahora',
             'scheduled_publish_at': 'Publicar Más Tarde (Fecha/Hora)',
@@ -52,6 +59,14 @@ class AssignmentForm(forms.ModelForm):
             'due_date': 'Fecha y hora límite para entregar sin penalización',
             'final_date': 'Si se establece, después de esta fecha no se podrán subir más archivos',
             'allow_group_work': 'Si está habilitado, los estudiantes podrán agregar colaboradores',
+            'allow_student_upload': (
+                'Si lo desactivás, el alumno no podrá subir material: '
+                'vos registrás si entregó y si fue a tiempo o no.'
+            ),
+            'evaluation_type': (
+                'Letras: R (Regular), B (Bueno), MB (Muy bueno), E (Excelente). '
+                'O puntaje numérico de 0 a 10.'
+            ),
             'is_active': 'Si está desactivada, los estudiantes no podrán verla',
             'is_published': 'Si está activado, la tarea estará disponible para los estudiantes inmediatamente',
             'scheduled_publish_at': 'Opcional: Programe la publicación para una fecha y hora específica. Si se establece, la tarea se publicará automáticamente en ese momento',
@@ -203,6 +218,11 @@ class SubmissionForm(forms.Form):
         cleaned_data['file_list'] = validated
 
         if self.assignment and self.student:
+            if not self.assignment.allow_student_upload:
+                raise forms.ValidationError(
+                    'Esta tarea no permite que el alumno suba archivos. '
+                    'El docente registra la entrega.'
+                )
             if not self.assignment.is_submission_allowed():
                 raise forms.ValidationError('Ya no se pueden subir archivos para esta tarea.')
             enrollment = Enrollment.objects.filter(
@@ -218,8 +238,42 @@ class SubmissionForm(forms.Form):
         return cleaned_data
 
 
+class TeacherMarkSubmissionForm(forms.Form):
+    """Docente registra entrega sin subida del alumno."""
+    ON_TIME_CHOICES = (
+        ('1', 'Entregó a tiempo'),
+        ('0', 'Entregó fuera de término'),
+    )
+    on_time = forms.ChoiceField(
+        choices=ON_TIME_CHOICES,
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        label='Puntualidad',
+        initial='1',
+    )
+
+
 class FeedbackForm(forms.Form):
-    """Form for teachers to give feedback on submissions"""
+    """Form for teachers to give feedback and grade on submissions"""
+    grade_letter = forms.ChoiceField(
+        choices=[('', '— Sin nota —')] + list(Assignment.GRADE_LETTER_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Nota',
+        required=False,
+        help_text='R Regular, B Bueno, MB Muy bueno, E Excelente',
+    )
+    grade_score = forms.IntegerField(
+        min_value=0,
+        max_value=10,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'min': '0',
+            'max': '10',
+            'step': '1',
+        }),
+        label='Nota (0 a 10)',
+        required=False,
+        help_text='Puntaje entero de 0 a 10',
+    )
     feedback = forms.CharField(
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
         label='Devolución',
@@ -232,6 +286,27 @@ class FeedbackForm(forms.Form):
         required=False,
         help_text='Marque esta opción si el estudiante debe hacer una reentrega'
     )
+
+    def __init__(self, *args, **kwargs):
+        self.assignment = kwargs.pop('assignment', None)
+        super().__init__(*args, **kwargs)
+        evaluation_type = (
+            self.assignment.evaluation_type
+            if self.assignment is not None
+            else Assignment.EVALUATION_LETTER
+        )
+        if evaluation_type == Assignment.EVALUATION_NUMERIC:
+            self.fields.pop('grade_letter', None)
+        else:
+            self.fields.pop('grade_score', None)
+
+    def clean_grade_score(self):
+        score = self.cleaned_data.get('grade_score')
+        if score is None:
+            return score
+        if score < 0 or score > 10:
+            raise forms.ValidationError('La nota debe estar entre 0 y 10.')
+        return score
 
 
 class CollaboratorForm(forms.Form):

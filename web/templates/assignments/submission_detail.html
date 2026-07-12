@@ -77,7 +77,7 @@
                             </li>
                             {% endfor %}
                         </ul>
-                        {% else %}
+                        {% elif submission.file %}
                         <p>{{ submission.original_filename|default:"Archivo" }}</p>
                         <div class="btn-group" role="group">
                             {% if submission.original_filename|lower|slice:"-5:" == ".docx" %}
@@ -93,6 +93,14 @@
                                 <i class="fas fa-download"></i> Descargar
                             </a>
                         </div>
+                        {% else %}
+                        <p class="text-muted mb-0">
+                            {% if submission.is_teacher_marked %}
+                            <i class="fas fa-chalkboard-teacher"></i> Entrega registrada por el docente (sin archivos).
+                            {% else %}
+                            Sin archivos adjuntos.
+                            {% endif %}
+                        </p>
                         {% endif %}
                     </div>
                 </div>
@@ -127,8 +135,12 @@
                                     <td>
                                         {% if version.attachment_files.all %}
                                             {% for a in version.attachment_files.all %}<div class="small">{{ a.original_filename|default:"archivo" }}</div>{% endfor %}
-                                        {% else %}
+                                        {% elif version.file %}
                                             {{ version.original_filename|default:"Archivo" }}
+                                        {% elif version.is_teacher_marked %}
+                                            <span class="text-muted small">Registrada por docente</span>
+                                        {% else %}
+                                            <span class="text-muted">Sin archivos</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ version.submitted_at|date:"d/m/Y H:i" }}</td>
@@ -145,9 +157,11 @@
                                         <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id version.id %}?v=1" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-eye"></i> Ver
                                         </a>
+                                        {% if version.attachment_files.all or version.file %}
                                         <a href="{% url 'assignments:submission_download' course.id unit.id tema.id assignment.id version.id %}" class="btn btn-sm btn-outline-info">
                                             <i class="fas fa-download"></i> Descargar
                                         </a>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -158,15 +172,23 @@
             </div>
             {% endif %}
 
-            {% if submission.feedback %}
+            {% if submission.feedback or submission.has_grade %}
             <div class="card shadow mb-4">
                 <div class="card-header bg-info text-white">
-                    <h5><i class="fas fa-comment"></i> Devolución del Docente</h5>
+                    <h5><i class="fas fa-clipboard-check"></i> Evaluación del Docente</h5>
                 </div>
                 <div class="card-body">
+                    {% if submission.has_grade %}
+                    <p class="mb-2">
+                        <strong>Nota:</strong>
+                        <span class="badge bg-dark fs-6">{{ submission.get_grade_display }}</span>
+                    </p>
+                    {% endif %}
+                    {% if submission.feedback %}
                     <p>{{ submission.feedback|linebreaks }}</p>
+                    {% endif %}
                     {% if submission.feedback_given_by %}
-                    <p class="text-muted">
+                    <p class="text-muted mb-0">
                         <small>
                             <i class="fas fa-user"></i> {{ submission.feedback_given_by.get_full_name|default:submission.feedback_given_by.username }}
                             - {{ submission.feedback_given_at|date:"d/m/Y H:i" }}
@@ -302,11 +324,14 @@
             {% if can_manage %}
             <div class="card shadow mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5><i class="fas fa-comment-dots"></i> Dar Feedback</h5>
+                    <h5><i class="fas fa-clipboard-check"></i> Evaluar</h5>
                 </div>
                 <div class="card-body">
+                    {% if submission.has_grade %}
+                    <p class="mb-2">Nota actual: <span class="badge bg-dark">{{ submission.get_grade_display }}</span></p>
+                    {% endif %}
                     <a href="{% url 'assignments:submission_feedback' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-primary w-100">
-                        <i class="fas fa-comment"></i> Dar Devolución
+                        <i class="fas fa-clipboard-check"></i> Cargar / editar evaluación
                     </a>
                 </div>
             </div>

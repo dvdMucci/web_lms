@@ -42,6 +42,20 @@
                                 <span class="badge bg-secondary">No Permitido</span>
                                 {% endif %}
                             </p>
+                            <p><strong><i class="fas fa-upload"></i> Subida del alumno:</strong>
+                                {% if assignment.allow_student_upload %}
+                                <span class="badge bg-success">Permitida</span>
+                                {% else %}
+                                <span class="badge bg-info">Registro manual por docente</span>
+                                {% endif %}
+                            </p>
+                            <p><strong><i class="fas fa-clipboard-check"></i> Evaluación:</strong>
+                                {% if assignment.evaluation_type == 'numeric' %}
+                                <span class="badge bg-primary">Puntaje 0–10</span>
+                                {% else %}
+                                <span class="badge bg-primary">Letras (R, B, MB, E)</span>
+                                {% endif %}
+                            </p>
                             <p><strong><i class="fas fa-toggle-on"></i> Estado:</strong> 
                                 {% if assignment.is_active %}
                                 <span class="badge bg-success">Activa</span>
@@ -75,6 +89,7 @@
                                 <tr>
                                     <th>Estudiante</th>
                                     <th>Estado</th>
+                                    <th>Nota</th>
                                     <th>Versiones</th>
                                     <th>Última Entrega</th>
                                     <th>Acciones</th>
@@ -119,6 +134,15 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        {% if item.has_submitted and item.latest_submission.has_grade %}
+                                        <span class="badge bg-dark">{{ item.latest_submission.get_grade_display }}</span>
+                                        {% elif item.has_submitted %}
+                                        <span class="text-muted">Sin nota</span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         {% if item.has_submitted %}
                                         <span class="badge bg-info">{{ item.submission_count }}</span>
                                         {% else %}
@@ -135,6 +159,14 @@
                                     <td>
                                         {% if item.has_submitted %}
                                         <div class="btn-group" role="group">
+                                            {% if item.latest_submission.is_teacher_marked and not item.latest_submission.has_files %}
+                                            <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                                <i class="fas fa-info-circle"></i> Detalles
+                                            </a>
+                                            <a href="{% url 'assignments:submission_feedback' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-success" title="Evaluar">
+                                                <i class="fas fa-clipboard-check"></i> Nota
+                                            </a>
+                                            {% else %}
                                             {% if item.latest_submission.original_filename|lower|slice:"-5:" == ".docx" %}
                                             <a href="{% url 'assignments:submission_docx_viewer' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver archivo">
                                                 <i class="fas fa-file-word"></i> Ver
@@ -147,10 +179,39 @@
                                             <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
                                                 <i class="fas fa-info-circle"></i> Detalles
                                             </a>
+                                            <a href="{% url 'assignments:submission_feedback' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-success" title="Evaluar">
+                                                <i class="fas fa-clipboard-check"></i> Nota
+                                            </a>
                                             <a href="{% url 'assignments:submission_download' course.id unit.id tema.id assignment.id item.latest_submission.id %}" class="btn btn-sm btn-outline-secondary" title="Descargar">
                                                 <i class="fas fa-download"></i>
                                             </a>
+                                            {% endif %}
                                         </div>
+                                        {% if not assignment.allow_student_upload and can_manage %}
+                                        <form method="post" action="{% url 'assignments:submission_teacher_mark' course.id unit.id tema.id assignment.id item.student.id %}" class="mt-2">
+                                            {% csrf_token %}
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="submit" name="on_time" value="1" class="btn btn-outline-success" title="Marcar a tiempo">
+                                                    <i class="fas fa-clock"></i> A tiempo
+                                                </button>
+                                                <button type="submit" name="on_time" value="0" class="btn btn-outline-warning" title="Marcar fuera de término">
+                                                    <i class="fas fa-exclamation-triangle"></i> Fuera de término
+                                                </button>
+                                            </div>
+                                        </form>
+                                        {% endif %}
+                                        {% elif not assignment.allow_student_upload and can_manage %}
+                                        <form method="post" action="{% url 'assignments:submission_teacher_mark' course.id unit.id tema.id assignment.id item.student.id %}">
+                                            {% csrf_token %}
+                                            <div class="d-flex flex-column gap-1">
+                                                <button type="submit" name="on_time" value="1" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-check"></i> Entregó a tiempo
+                                                </button>
+                                                <button type="submit" name="on_time" value="0" class="btn btn-sm btn-warning">
+                                                    <i class="fas fa-exclamation-triangle"></i> Fuera de término
+                                                </button>
+                                            </div>
+                                        </form>
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}

@@ -21,7 +21,14 @@ from .models import (
     AssignmentCollaborator,
     AssignmentComment,
 )
-from .forms import AssignmentForm, SubmissionForm, FeedbackForm, CollaboratorForm, CommentForm
+from .forms import (
+    AssignmentForm,
+    SubmissionForm,
+    FeedbackForm,
+    CollaboratorForm,
+    CommentForm,
+    TeacherMarkSubmissionForm,
+)
 from courses.models import Course, Enrollment
 from courses.utils import can_view_course_as_teacher
 from units.models import Unit, Tema
@@ -820,8 +827,8 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
             if collab:
                 collaborated_submission = collab.submission
 
-        # Check if can submit
-        can_submit = assignment.is_submission_allowed()
+        # Check if can submit (fecha + política de la tarea)
+        can_submit = assignment.can_student_upload()
         is_late = assignment.is_late_submission()
 
         # Get collaborators for the latest submission shown
@@ -912,7 +919,15 @@ def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
         messages.error(request, 'Debes estar inscrito y aprobado en el curso para entregar tareas.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
     
-    # Check if assignment allows submissions
+    # Check if assignment allows student uploads
+    if not assignment.allow_student_upload:
+        messages.error(
+            request,
+            'Esta tarea no permite que el alumno suba archivos. El docente registra la entrega.',
+        )
+        return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
+
+    # Check if assignment allows submissions by date
     if not assignment.is_submission_allowed():
         messages.error(request, 'Ya no se pueden subir archivos para esta tarea.')
         return redirect('assignments:assignment_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id)
@@ -1118,26 +1133,39 @@ def submission_feedback(request, course_id, unit_id, tema_id, assignment_id, sub
         return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     
     if request.method == 'POST':
-        form = FeedbackForm(request.POST)
+        form = FeedbackForm(request.POST, assignment=assignment)
         if form.is_valid():
             submission.feedback = form.cleaned_data.get('feedback', '')
             submission.needs_resubmission = form.cleaned_data.get('needs_resubmission', False)
             submission.feedback_given_at = timezone.now()
             submission.feedback_given_by = request.user
-            
+
+            if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+                submission.grade_score = form.cleaned_data.get('grade_score')
+                submission.grade_letter = None
+            else:
+                letter = form.cleaned_data.get('grade_letter') or None
+                submission.grade_letter = letter or None
+                submission.grade_score = None
+
             if submission.needs_resubmission:
                 submission.status = 'returned'
             else:
                 submission.status = 'submitted'
-            
+
             submission.save()
-            messages.success(request, 'Feedback guardado exitosamente.')
+            messages.success(request, 'Evaluación guardada exitosamente.')
             return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)
     else:
-        form = FeedbackForm(initial={
+        initial = {
             'feedback': submission.feedback,
             'needs_resubmission': submission.needs_resubmission,
-        })
+        }
+        if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+            initial['grade_score'] = submission.grade_score
+        else:
+            initial['grade_letter'] = submission.grade_letter or ''
+        form = FeedbackForm(initial=initial, assignment=assignment)
     
     context = {
         'form': form,
@@ -1148,6 +1176,114 @@ def submission_feedback(request, course_id, unit_id, tema_id, assignment_id, sub
         'submission': submission,
     }
     return render(request, 'assignments/submission_feedback.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def submission_teacher_mark(request, course_id, unit_id, tema_id, assignment_id, student_id):
+    """Docente registra entrega (sin archivo) y puntualidad."""
+    course = get_object_or_404(Course, id=course_id)
+    unit = get_object_or_404(Unit, id=unit_id, course=course)
+    tema = get_object_or_404(Tema, id=tema_id, unit=unit)
+    assignment = get_object_or_404(Assignment, id=assignment_id, tema=tema, course=course)
+    student = get_object_or_404(User, id=student_id, user_type='student')
+
+    detail_redirect = redirect(
+        'assignments:assignment_detail',
+        course_id=course_id,
+        unit_id=unit_id,
+        tema_id=tema_id,
+        assignment_id=assignment_id,
+    )
+
+    if not assignment.can_be_managed_by(request.user):
+        messages.error(request, 'No tenés permiso para registrar entregas en esta tarea.')
+        return detail_redirect
+
+    if assignment.allow_student_upload:
+        messages.error(
+            request,
+            'Esta tarea permite subida del alumno. Desactivá esa opción para registrar entregas manualmente.',
+        )
+        return detail_redirect
+
+    enrollment = Enrollment.objects.filter(
+        course=course,
+        student=student,
+        status='approved',
+    ).first()
+    if not enrollment:
+        messages.error(request, 'El alumno no está inscrito en este curso.')
+        return detail_redirect
+
+    target_ids = list(assignment.target_students.values_list('id', flat=True))
+    if target_ids and student.id not in target_ids:
+        messages.error(request, 'El alumno no es destinatario de esta tarea.')
+        return detail_redirect
+
+    form = TeacherMarkSubmissionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Datos inválidos al registrar la entrega.')
+        return detail_redirect
+
+    on_time = form.cleaned_data['on_time'] == '1'
+    now = timezone.now()
+
+    existing = (
+        AssignmentSubmission.objects.filter(assignment=assignment, student=student)
+        .order_by('-version')
+        .first()
+    )
+
+    try:
+        with transaction.atomic():
+            if existing and existing.is_teacher_marked and not existing.has_files():
+                existing.teacher_marked_on_time = on_time
+                existing.teacher_marked_at = now
+                existing.teacher_marked_by = request.user
+                existing.status = 'submitted'
+                existing.needs_resubmission = False
+                existing.save(update_fields=[
+                    'teacher_marked_on_time',
+                    'teacher_marked_at',
+                    'teacher_marked_by',
+                    'status',
+                    'needs_resubmission',
+                ])
+                submission = existing
+            else:
+                proto = AssignmentSubmission(assignment=assignment, student=student)
+                version = proto.get_next_version()
+                submission = AssignmentSubmission(
+                    assignment=assignment,
+                    student=student,
+                    version=version,
+                    status='submitted',
+                    is_teacher_marked=True,
+                    teacher_marked_on_time=on_time,
+                    teacher_marked_at=now,
+                    teacher_marked_by=request.user,
+                    original_filename='',
+                )
+                submission.save()
+    except ValidationError as e:
+        messages.error(request, str(e))
+        return detail_redirect
+
+    puntualidad = 'a tiempo' if on_time else 'fuera de término'
+    messages.success(
+        request,
+        f'Entrega de {student.get_full_name() or student.username} registrada ({puntualidad}).',
+    )
+    log_user_activity(
+        action=UserActivityLog.ACTION_SUBMISSION_UPLOADED,
+        actor=request.user,
+        details=(
+            f'Entrega registrada por docente en tarea "{assignment.title}" '
+            f'para {student.username} ({puntualidad}, v{submission.version})'
+        ),
+    )
+    return detail_redirect
 
 
 @login_required

@@ -133,6 +133,70 @@
                 </div>
             </div>
         {% endif %}
+
+        {% if user.is_student %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-tasks"></i> Mis entregas</h5>
+                </div>
+                <div class="card-body">
+                    {% if student_assignment_rows %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tarea</th>
+                                    <th>Curso</th>
+                                    <th>Estado</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in student_assignment_rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.assignment.title }}</strong>
+                                        {% if not row.assignment.allow_student_upload %}
+                                        <br><small class="text-muted"><i class="fas fa-chalkboard-teacher"></i> Registro por docente</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small text-muted">
+                                        {{ row.assignment.course.title }}
+                                        <br>{{ row.assignment.tema.unit.title }} / {{ row.assignment.tema.title }}
+                                    </td>
+                                    <td>
+                                        {% if row.needs_resubmission %}
+                                        <span class="badge bg-danger">Requiere reentrega</span>
+                                        {% elif row.has_submitted %}
+                                        <span class="badge bg-success">Entregado</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% endif %}
+                                        {% if row.has_submitted and row.is_late %}
+                                        <br><span class="badge bg-warning mt-1">Fuera de término</span>
+                                        {% elif row.has_submitted and not row.is_late %}
+                                        <br><span class="badge bg-info mt-1">A tiempo</span>
+                                        {% endif %}
+                                        {% if row.grade_display %}
+                                        <br><span class="badge bg-dark mt-1">Nota: {{ row.grade_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'assignments:assignment_detail' row.assignment.course.id row.assignment.tema.unit.id row.assignment.tema.id row.assignment.id %}" class="btn btn-sm btn-outline-primary">
+                                            Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No tenés tareas publicadas en tus cursos.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
     </div>
 
     <div class="col-md-4">

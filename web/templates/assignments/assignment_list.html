@@ -66,6 +66,13 @@
                         </span>
                     </div>
                     {% endif %}
+                    {% if not assignment.allow_student_upload %}
+                    <div class="mb-2">
+                        <span class="badge bg-secondary">
+                            <i class="fas fa-chalkboard-teacher"></i> Registro por docente
+                        </span>
+                    </div>
+                    {% endif %}
                     {% if user.is_student %}
                     <div class="mb-2">
                         {% if assignment.needs_resubmission %}

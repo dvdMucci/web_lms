@@ -42,6 +42,13 @@
                                 <span class="badge bg-secondary">Individual</span>
                                 {% endif %}
                             </p>
+                            <p><strong><i class="fas fa-clipboard-check"></i> Evaluación:</strong>
+                                {% if assignment.evaluation_type == 'numeric' %}
+                                Puntaje 0–10
+                                {% else %}
+                                Letras (R, B, MB, E)
+                                {% endif %}
+                            </p>
                             {% if is_late %}
                             <p><span class="badge bg-warning">
                                 <i class="fas fa-exclamation-triangle"></i> La fecha límite ha pasado
@@ -102,6 +109,8 @@
                                                 <li><i class="fas fa-file"></i> {{ a.original_filename|default:"archivo" }}</li>
                                             {% endfor %}
                                             </ul>
+                                        {% elif submission.is_teacher_marked %}
+                                            <span class="text-muted"><i class="fas fa-chalkboard-teacher"></i> Registrada por el docente</span>
                                         {% else %}
                                             <i class="fas fa-file"></i> {{ submission.original_filename|default:"Archivo" }}
                                         {% endif %}
@@ -130,6 +139,11 @@
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
+                                            {% if submission.is_teacher_marked and not submission.attachment_files.all and not submission.file %}
+                                            <a href="{% url 'assignments:submission_detail' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                                <i class="fas fa-info-circle"></i> Detalles
+                                            </a>
+                                            {% else %}
                                             {% if submission.original_filename|lower|slice:"-5:" == ".docx" %}
                                             <a href="{% url 'assignments:submission_docx_viewer' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver archivo">
                                                 <i class="fas fa-file-word"></i> Ver
@@ -145,6 +159,7 @@
                                             <a href="{% url 'assignments:submission_download' course.id unit.id tema.id assignment.id submission.id %}" class="btn btn-sm btn-outline-secondary" title="Descargar">
                                                 <i class="fas fa-download"></i>
                                             </a>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -213,13 +228,21 @@
             </div>
             {% if active_submission %}
 
-            {% if active_submission.feedback %}
+            {% if active_submission.feedback or active_submission.has_grade %}
             <div class="card shadow mb-4">
                 <div class="card-header bg-info text-white">
-                    <h5><i class="fas fa-comment-dots"></i> Devolución del Docente</h5>
+                    <h5><i class="fas fa-clipboard-check"></i> Evaluación del Docente</h5>
                 </div>
                 <div class="card-body">
+                    {% if active_submission.has_grade %}
+                    <p class="mb-2">
+                        <strong>Nota:</strong>
+                        <span class="badge bg-dark fs-6">{{ active_submission.get_grade_display }}</span>
+                    </p>
+                    {% endif %}
+                    {% if active_submission.feedback %}
                     <p>{{ active_submission.feedback|linebreaks }}</p>
+                    {% endif %}
                     {% if active_submission.feedback_given_by %}
                     <p class="text-muted mb-0">
                         <small>
@@ -312,9 +335,21 @@
         <div class="col-lg-4">
             <div class="card shadow mb-4">
                 <div class="card-header">
-                    <h5><i class="fas fa-upload"></i> Entregar Tarea</h5>
+                    <h5>
+                        {% if assignment.allow_student_upload %}
+                        <i class="fas fa-upload"></i> Entregar Tarea
+                        {% else %}
+                        <i class="fas fa-clipboard-check"></i> Estado de entrega
+                        {% endif %}
+                    </h5>
                 </div>
                 <div class="card-body">
+                    {% if not assignment.allow_student_upload %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Esta tarea no requiere que subas archivos. El docente registra si entregaste y si fue a tiempo.
+                    </div>
+                    {% endif %}
                     {% if can_submit %}
                     <p>Puedes subir tu entrega. Los archivos permitidos son:</p>
                     <ul class="list-unstyled">
@@ -331,6 +366,18 @@
                     <div class="alert alert-warning mt-3">
                         <i class="fas fa-exclamation-triangle"></i> 
                         <strong>Advertencia:</strong> La fecha límite ha pasado. Tu entrega será marcada como fuera de término.
+                    </div>
+                    {% endif %}
+                    {% elif not assignment.allow_student_upload %}
+                    {% if submissions or collaborated_submission %}
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle"></i>
+                        Tu entrega ya fue registrada por el docente.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-clock"></i>
+                        Pendiente de registro por el docente.
                     </div>
                     {% endif %}
                     {% else %}

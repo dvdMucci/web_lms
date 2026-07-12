@@ -57,6 +57,11 @@ urlpatterns = [
         name='submission_attachment_docx_viewer',
     ),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/feedback/', views.submission_feedback, name='submission_feedback'),
+    path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/students/<int:student_id>/mark/',
+        views.submission_teacher_mark,
+        name='submission_teacher_mark',
+    ),
     path('courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/assignments/<int:assignment_id>/submissions/<int:submission_id>/download/', views.submission_download, name='submission_download'),
     
     # Collaborators

@@ -563,6 +563,67 @@ def profile_view(request):
         context['teacher_assignments'] = Assignment.objects.filter(
             created_by=request.user
         ).select_related('course').order_by('-created_at')[:10]
+    elif request.user.is_student():
+        from django.db.models import Count, Q
+        from assignments.models import Assignment, AssignmentSubmission, AssignmentCollaborator
+        from courses.models import Enrollment
+
+        enrolled_course_ids = list(
+            Enrollment.objects.filter(
+                student=request.user,
+                status='approved',
+            ).values_list('course_id', flat=True)
+        )
+        assignments = list(
+            Assignment.objects.filter(
+                course_id__in=enrolled_course_ids,
+                is_active=True,
+                is_published=True,
+            )
+            .annotate(target_count=Count('target_students'))
+            .filter(Q(target_count=0) | Q(target_students=request.user))
+            .distinct()
+            .select_related('course', 'tema', 'tema__unit')
+            .order_by('due_date', 'created_at')[:50]
+        )
+        assignment_ids = [a.id for a in assignments]
+        latest_by_assignment = {}
+        if assignment_ids:
+            for submission in AssignmentSubmission.objects.filter(
+                assignment_id__in=assignment_ids,
+                student=request.user,
+            ).select_related('assignment').order_by('assignment_id', '-version'):
+                if submission.assignment_id not in latest_by_assignment:
+                    latest_by_assignment[submission.assignment_id] = submission
+
+            missing_group_ids = [
+                a.id for a in assignments
+                if a.allow_group_work and a.id not in latest_by_assignment
+            ]
+            if missing_group_ids:
+                for collab in AssignmentCollaborator.objects.filter(
+                    student=request.user,
+                    submission__assignment_id__in=missing_group_ids,
+                ).select_related('submission').order_by(
+                    'submission__assignment_id', '-submission__version'
+                ):
+                    aid = collab.submission.assignment_id
+                    if aid not in latest_by_assignment:
+                        latest_by_assignment[aid] = collab.submission
+
+        student_assignment_rows = []
+        for assignment in assignments:
+            latest = latest_by_assignment.get(assignment.id)
+            student_assignment_rows.append({
+                'assignment': assignment,
+                'has_submitted': latest is not None,
+                'latest_submission': latest,
+                'is_late': latest.is_late() if latest else False,
+                'needs_resubmission': bool(latest and latest.needs_resubmission),
+                'is_teacher_marked': bool(latest and latest.is_teacher_marked),
+                'grade_display': latest.get_grade_display() if latest and latest.has_grade() else None,
+            })
+        context['student_assignment_rows'] = student_assignment_rows
     return render(request, 'accounts/profile.html', context)
 
 @login_required

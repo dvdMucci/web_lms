@@ -27,6 +27,23 @@ def submission_attachment_upload_path(instance, filename):
 
 class Assignment(models.Model):
     """Model for assignments/tasks created by teachers within themes"""
+    EVALUATION_LETTER = 'letter'
+    EVALUATION_NUMERIC = 'numeric'
+    EVALUATION_TYPE_CHOICES = [
+        (EVALUATION_LETTER, 'Letras (R, B, MB, E)'),
+        (EVALUATION_NUMERIC, 'Puntaje (0 a 10)'),
+    ]
+    GRADE_LETTER_R = 'R'
+    GRADE_LETTER_B = 'B'
+    GRADE_LETTER_MB = 'MB'
+    GRADE_LETTER_E = 'E'
+    GRADE_LETTER_CHOICES = [
+        (GRADE_LETTER_R, 'R — Regular'),
+        (GRADE_LETTER_B, 'B — Bueno'),
+        (GRADE_LETTER_MB, 'MB — Muy bueno'),
+        (GRADE_LETTER_E, 'E — Excelente'),
+    ]
+
     title = models.CharField(max_length=200, verbose_name='Título')
     description = models.TextField(verbose_name='Descripción')
     tema = models.ForeignKey(
@@ -56,6 +73,21 @@ class Assignment(models.Model):
     allow_group_work = models.BooleanField(
         default=False,
         verbose_name='Permitir Trabajo en Grupo'
+    )
+    allow_student_upload = models.BooleanField(
+        default=True,
+        verbose_name='Permitir subida de archivos por el alumno',
+        help_text=(
+            'Si está desactivado, el alumno no puede subir material: '
+            'el docente registra la entrega y si fue a tiempo o no.'
+        ),
+    )
+    evaluation_type = models.CharField(
+        max_length=20,
+        choices=EVALUATION_TYPE_CHOICES,
+        default=EVALUATION_LETTER,
+        verbose_name='Forma de evaluación',
+        help_text='Cómo se califica esta tarea: con letras o con puntaje de 0 a 10.',
     )
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     is_published = models.BooleanField(
@@ -146,11 +178,15 @@ class Assignment(models.Model):
         )
 
     def is_submission_allowed(self):
-        """Check if submissions are still allowed"""
+        """Check if submissions are still allowed by date window."""
         from django.utils import timezone
         if self.final_date:
             return timezone.now() <= self.final_date
         return True
+
+    def can_student_upload(self):
+        """Whether the student may upload files for this assignment."""
+        return self.allow_student_upload and self.is_submission_allowed()
 
     def is_late_submission(self):
         """Check if current time is past due date"""
@@ -221,6 +257,42 @@ class AssignmentSubmission(models.Model):
         related_name='given_feedbacks',
         verbose_name='Devolución dada por'
     )
+    is_teacher_marked = models.BooleanField(
+        default=False,
+        verbose_name='Registrada por el docente',
+        help_text='True cuando el docente registró la entrega sin subida del alumno.',
+    )
+    teacher_marked_on_time = models.BooleanField(
+        null=True,
+        blank=True,
+        verbose_name='Entrega a tiempo (marca docente)',
+        help_text='Si no es nulo, prevalece sobre el cálculo automático por fecha.',
+    )
+    teacher_marked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Marcada por el docente en',
+    )
+    teacher_marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='teacher_marked_submissions',
+        verbose_name='Marcada por',
+    )
+    grade_letter = models.CharField(
+        max_length=2,
+        choices=Assignment.GRADE_LETTER_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name='Nota (letras)',
+    )
+    grade_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Nota (0 a 10)',
+    )
 
     class Meta:
         verbose_name = 'Entrega de Tarea'
@@ -259,10 +331,35 @@ class AssignmentSubmission(models.Model):
         super().save(*args, **kwargs)
 
     def is_late(self):
-        """Check if this submission was late"""
+        """Check if this submission was late (teacher mark overrides auto calc)."""
+        if self.teacher_marked_on_time is not None:
+            return not self.teacher_marked_on_time
         if not self.submitted_at or not self.assignment.due_date:
             return False
         return self.submitted_at > self.assignment.due_date
+
+    def has_files(self):
+        """Whether this submission has any uploaded files."""
+        if self.attachment_files.exists():
+            return True
+        return bool(self.file)
+
+    def has_grade(self):
+        """Whether a grade was set according to the assignment evaluation type."""
+        if self.assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+            return self.grade_score is not None
+        return bool(self.grade_letter)
+
+    def get_grade_display(self):
+        """Human-readable grade for the active evaluation type."""
+        if self.assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+            if self.grade_score is None:
+                return None
+            return str(self.grade_score)
+        if not self.grade_letter:
+            return None
+        labels = dict(Assignment.GRADE_LETTER_CHOICES)
+        return labels.get(self.grade_letter, self.grade_letter)
 
     def get_next_version(self):
         """Get the next version number for this student's submission"""

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Dar Feedback{% endblock %}
+{% block title %}Evaluar entrega{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -8,7 +8,7 @@
         <div class="col-md-8">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h4><i class="fas fa-comment"></i> Dar Feedback - {{ submission.student.get_full_name|default:submission.student.username }}</h4>
+                    <h4><i class="fas fa-clipboard-check"></i> Evaluar - {{ submission.student.get_full_name|default:submission.student.username }}</h4>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
@@ -27,6 +27,32 @@
 
                     <form method="post">
                         {% csrf_token %}
+
+                        {% if 'grade_letter' in form.fields %}
+                        <div class="mb-3">
+                            <label for="{{ form.grade_letter.id_for_label }}" class="form-label">{{ form.grade_letter.label }}</label>
+                            {{ form.grade_letter }}
+                            {% if form.grade_letter.errors %}
+                                <div class="text-danger">{{ form.grade_letter.errors }}</div>
+                            {% endif %}
+                            {% if form.grade_letter.help_text %}
+                                <small class="form-text text-muted">{{ form.grade_letter.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {% if 'grade_score' in form.fields %}
+                        <div class="mb-3">
+                            <label for="{{ form.grade_score.id_for_label }}" class="form-label">{{ form.grade_score.label }}</label>
+                            {{ form.grade_score }}
+                            {% if form.grade_score.errors %}
+                                <div class="text-danger">{{ form.grade_score.errors }}</div>
+                            {% endif %}
+                            {% if form.grade_score.help_text %}
+                                <small class="form-text text-muted">{{ form.grade_score.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
 
                         <div class="mb-3">
                             <label for="{{ form.feedback.id_for_label }}" class="form-label">{{ form.feedback.label }}</label>
@@ -60,7 +86,7 @@
                                 <i class="fas fa-times"></i> Cancelar
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Guardar Feedback
+                                <i class="fas fa-save"></i> Guardar evaluación
                             </button>
                         </div>
                     </form>
