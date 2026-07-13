@@ -344,35 +344,14 @@ def student_deliveries(request, course_id, student_id):
 
     latest_by_assignment = {}
     if assignment_ids:
-        for submission in AssignmentSubmission.objects.filter(
-            assignment_id__in=assignment_ids,
-            student=student,
-        ).select_related('assignment').prefetch_related('attachment_files').order_by(
-            'assignment_id', '-version'
-        ):
-            if submission.assignment_id not in latest_by_assignment:
-                latest_by_assignment[submission.assignment_id] = {
+        from .services import get_effective_submission
+        for assignment in assignments:
+            submission, is_collaborator = get_effective_submission(assignment, student)
+            if submission is not None:
+                latest_by_assignment[assignment.id] = {
                     'submission': submission,
-                    'is_collaborator': False,
+                    'is_collaborator': is_collaborator,
                 }
-
-        missing_group_ids = [
-            a.id for a in assignments
-            if a.allow_group_work and a.id not in latest_by_assignment
-        ]
-        if missing_group_ids:
-            for collab in AssignmentCollaborator.objects.filter(
-                student=student,
-                submission__assignment_id__in=missing_group_ids,
-            ).select_related('submission', 'submission__assignment').prefetch_related(
-                'submission__attachment_files'
-            ).order_by('submission__assignment_id', '-submission__version'):
-                aid = collab.submission.assignment_id
-                if aid not in latest_by_assignment:
-                    latest_by_assignment[aid] = {
-                        'submission': collab.submission,
-                        'is_collaborator': True,
-                    }
 
     now = timezone.now()
     rows = []
@@ -762,32 +741,27 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
     if is_teacher:
         # Teacher view: show submissions from target students (or all enrolled if no target set)
         target_ids = list(assignment.target_students.values_list('id', flat=True))
-        enrolled_qs = Enrollment.objects.filter(course=course, status='approved').select_related('student')
+        enrolled_qs = Enrollment.objects.filter(course=course, status='approved').select_related('student').order_by(
+            'student__last_name', 'student__first_name', 'student__username'
+        )
         if target_ids:
             enrolled_qs = enrolled_qs.filter(student_id__in=target_ids)
-        enrolled_students = enrolled_qs
-        
-        # For each student, get their latest submission
+        enrolled_students = list(enrolled_qs)
+        students = [enrollment.student for enrollment in enrolled_students]
+
+        from .services import map_effective_submissions
+        effective_map = map_effective_submissions(assignment, students)
+
+        # For each student, get their latest submission (own or as collaborator)
         students_with_submissions = []
         submitted_count = 0
         pending_count = 0
-        
+
         for enrollment in enrolled_students:
             student = enrollment.student
-            latest_submission = AssignmentSubmission.objects.filter(
-                assignment=assignment,
-                student=student
-            ).prefetch_related('attachment_files').order_by('-version').first()
-
-            is_collaborator = False
-            if latest_submission is None and assignment.allow_group_work:
-                collab = AssignmentCollaborator.objects.filter(
-                    submission__assignment=assignment,
-                    student=student,
-                ).select_related('submission').order_by('-submission__version').first()
-                if collab:
-                    latest_submission = collab.submission
-                    is_collaborator = True
+            entry = effective_map.get(student.id, {})
+            latest_submission = entry.get('submission')
+            is_collaborator = bool(entry.get('is_collaborator'))
 
             has_submitted = latest_submission is not None
             if has_submitted:
@@ -795,15 +769,20 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
             else:
                 pending_count += 1
 
+            if is_collaborator and latest_submission is not None:
+                submission_count = latest_submission.version
+            else:
+                submission_count = AssignmentSubmission.objects.filter(
+                    assignment=assignment,
+                    student=student,
+                ).count()
+
             students_with_submissions.append({
                 'student': student,
                 'has_submitted': has_submitted,
                 'latest_submission': latest_submission,
                 'is_collaborator': is_collaborator,
-                'submission_count': AssignmentSubmission.objects.filter(
-                    assignment=assignment,
-                    student=student
-                ).count(),
+                'submission_count': submission_count,
             })
         
         context['students_with_submissions'] = students_with_submissions
@@ -820,12 +799,10 @@ def assignment_detail(request, course_id, unit_id, tema_id, assignment_id):
 
         collaborated_submission = None
         if not submissions.exists() and assignment.allow_group_work:
-            collab = AssignmentCollaborator.objects.filter(
-                submission__assignment=assignment,
-                student=request.user,
-            ).select_related('submission').order_by('-submission__version').first()
-            if collab:
-                collaborated_submission = collab.submission
+            from .services import get_effective_submission
+            effective, is_collaborator = get_effective_submission(assignment, request.user)
+            if is_collaborator and effective is not None:
+                collaborated_submission = effective
 
         # Check if can submit (fecha + política de la tarea)
         can_submit = assignment.can_student_upload()
@@ -958,6 +935,17 @@ def submission_upload(request, course_id, unit_id, tema_id, assignment_id):
                             original_filename=os.path.basename(uploaded.name),
                             order=i,
                         )
+                    # Keep group collaborators across new versions
+                    if assignment.allow_group_work and version > 1:
+                        previous = (
+                            AssignmentSubmission.objects.filter(
+                                assignment=assignment,
+                                student=request.user,
+                                version=version - 1,
+                            ).first()
+                        )
+                        from .services import copy_collaborators
+                        copy_collaborators(previous, submission)
                     initial_comment = form.cleaned_data.get('initial_comment')
                     if initial_comment:
                         AssignmentComment.objects.create(
@@ -1221,13 +1209,22 @@ def submission_teacher_mark(request, course_id, unit_id, tema_id, assignment_id,
         messages.error(request, 'El alumno no es destinatario de esta tarea.')
         return detail_redirect
 
-    form = TeacherMarkSubmissionForm(request.POST)
+    form = TeacherMarkSubmissionForm(request.POST, assignment=assignment)
     if not form.is_valid():
         messages.error(request, 'Datos inválidos al registrar la entrega.')
         return detail_redirect
 
     on_time = form.cleaned_data['on_time'] == '1'
     now = timezone.now()
+    grade_provided = False
+    if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+        grade_score = form.cleaned_data.get('grade_score')
+        grade_letter = None
+        grade_provided = grade_score is not None
+    else:
+        grade_letter = form.cleaned_data.get('grade_letter') or None
+        grade_score = None
+        grade_provided = bool(grade_letter)
 
     existing = (
         AssignmentSubmission.objects.filter(assignment=assignment, student=student)
@@ -1243,21 +1240,29 @@ def submission_teacher_mark(request, course_id, unit_id, tema_id, assignment_id,
                 existing.teacher_marked_by = request.user
                 existing.status = 'submitted'
                 existing.needs_resubmission = False
-                existing.save(update_fields=[
+                update_fields = [
                     'teacher_marked_on_time',
                     'teacher_marked_at',
                     'teacher_marked_by',
                     'status',
                     'needs_resubmission',
-                ])
+                ]
+                if grade_provided:
+                    if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+                        existing.grade_score = grade_score
+                        existing.grade_letter = None
+                    else:
+                        existing.grade_letter = grade_letter
+                        existing.grade_score = None
+                    update_fields.extend(['grade_score', 'grade_letter'])
+                existing.save(update_fields=update_fields)
                 submission = existing
             else:
                 proto = AssignmentSubmission(assignment=assignment, student=student)
-                version = proto.get_next_version()
                 submission = AssignmentSubmission(
                     assignment=assignment,
                     student=student,
-                    version=version,
+                    version=proto.get_next_version(),
                     status='submitted',
                     is_teacher_marked=True,
                     teacher_marked_on_time=on_time,
@@ -1265,15 +1270,26 @@ def submission_teacher_mark(request, course_id, unit_id, tema_id, assignment_id,
                     teacher_marked_by=request.user,
                     original_filename='',
                 )
+                if grade_provided:
+                    if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+                        submission.grade_score = grade_score
+                    else:
+                        submission.grade_letter = grade_letter
                 submission.save()
     except ValidationError as e:
         messages.error(request, str(e))
         return detail_redirect
 
     puntualidad = 'a tiempo' if on_time else 'fuera de término'
+    grade_msg = ''
+    if grade_provided:
+        if assignment.evaluation_type == Assignment.EVALUATION_NUMERIC:
+            grade_msg = f' Nota: {grade_score}.'
+        else:
+            grade_msg = f' Nota: {grade_letter}.'
     messages.success(
         request,
-        f'Entrega de {student.get_full_name() or student.username} registrada ({puntualidad}).',
+        f'Entrega de {student.get_full_name() or student.username} registrada ({puntualidad}).{grade_msg}',
     )
     log_user_activity(
         action=UserActivityLog.ACTION_SUBMISSION_UPLOADED,
@@ -1311,7 +1327,24 @@ def collaborator_add(request, course_id, unit_id, tema_id, assignment_id, submis
         form = CollaboratorForm(request.POST, submission=submission, current_student=submission.student)
         if form.is_valid():
             collaborator = form.cleaned_data['collaborator']
-            AssignmentCollaborator.objects.create(submission=submission, student=collaborator)
+            AssignmentCollaborator.objects.get_or_create(
+                submission=submission,
+                student=collaborator,
+            )
+            # Also attach to the owner's latest version so status/grades stay in sync
+            latest = (
+                AssignmentSubmission.objects.filter(
+                    assignment=assignment,
+                    student=submission.student,
+                )
+                .order_by('-version')
+                .first()
+            )
+            if latest and latest.id != submission.id:
+                AssignmentCollaborator.objects.get_or_create(
+                    submission=latest,
+                    student=collaborator,
+                )
             name = collaborator.get_full_name() or collaborator.username
             messages.success(request, f'Colaborador "{name}" agregado exitosamente.')
             return redirect('assignments:submission_detail', course_id=course_id, unit_id=unit_id, tema_id=tema_id, assignment_id=assignment_id, submission_id=submission_id)

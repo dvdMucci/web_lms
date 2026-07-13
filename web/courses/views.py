@@ -425,7 +425,9 @@ def course_detail(request, course_id):
             participants = Enrollment.objects.filter(
                 course=course,
                 status='approved'
-            ).select_related('student').order_by('student__first_name', 'student__last_name')
+            ).select_related('student').order_by(
+                'student__last_name', 'student__first_name', 'student__username'
+            )
             context['participants'] = participants
             context['collaborators'] = course.collaborators.all()
 
@@ -445,7 +447,9 @@ def course_detail(request, course_id):
         # Get all enrollments
         enrollments = Enrollment.objects.filter(
             course=course
-        ).select_related('student').order_by('-enrolled_at')
+        ).select_related('student').order_by(
+            'student__last_name', 'student__first_name', 'student__username'
+        )
         context['enrollments'] = enrollments
 
         # Get collaborators

@@ -56,7 +56,7 @@ def _build_report_data(course, start_date, end_date):
     enrollments = Enrollment.objects.filter(
         course=course,
         status='approved'
-    ).select_related('student').order_by('student__first_name', 'student__last_name', 'student__username')
+    ).select_related('student').order_by('student__last_name', 'student__first_name', 'student__username')
 
     records = AttendanceRecord.objects.filter(
         session__course=course,
@@ -120,7 +120,7 @@ def attendance_take(request, course_id):
     enrollments = Enrollment.objects.filter(
         course=course,
         status='approved'
-    ).select_related('student').order_by('student__first_name', 'student__last_name', 'student__username')
+    ).select_related('student').order_by('student__last_name', 'student__first_name', 'student__username')
 
     records_by_student = {}
     if session:
@@ -255,7 +255,7 @@ def attendance_report_excel(request, course_id):
         records = AttendanceRecord.objects.filter(
             session__course=course,
             session__date__range=(start_date, end_date)
-        ).select_related('session', 'student').order_by('student__first_name', 'student__last_name', 'session__date')
+        ).select_related('session', 'student').order_by('student__last_name', 'student__first_name', 'session__date')
 
         for record in records:
             student_name = record.student.get_full_name() or record.student.username
@@ -349,7 +349,7 @@ def attendance_report_pdf(request, course_id):
         records = AttendanceRecord.objects.filter(
             session__course=course,
             session__date__range=(start_date, end_date)
-        ).select_related('session', 'student').order_by('student__first_name', 'student__last_name', 'session__date')
+        ).select_related('session', 'student').order_by('student__last_name', 'student__first_name', 'session__date')
 
         for record in records:
             if y_position < 50:

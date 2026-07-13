@@ -169,6 +169,9 @@
                                         <span class="badge bg-danger">Requiere reentrega</span>
                                         {% elif row.has_submitted %}
                                         <span class="badge bg-success">Entregado</span>
+                                        {% if row.is_collaborator %}
+                                        <span class="badge bg-secondary">Colaborador</span>
+                                        {% endif %}
                                         {% else %}
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% endif %}

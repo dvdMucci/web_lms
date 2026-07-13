@@ -145,7 +145,7 @@ class Enrollment(models.Model):
     class Meta:
         verbose_name = 'Inscripción'
         verbose_name_plural = 'Inscripciones'
-        ordering = ['-enrolled_at']
+        ordering = ['student__last_name', 'student__first_name', 'student__username']
         unique_together = ['student', 'course']
 
     def __str__(self):

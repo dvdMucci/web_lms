@@ -239,7 +239,7 @@ class SubmissionForm(forms.Form):
 
 
 class TeacherMarkSubmissionForm(forms.Form):
-    """Docente registra entrega sin subida del alumno."""
+    """Docente registra entrega sin subida del alumno, con calificación opcional."""
     ON_TIME_CHOICES = (
         ('1', 'Entregó a tiempo'),
         ('0', 'Entregó fuera de término'),
@@ -250,6 +250,45 @@ class TeacherMarkSubmissionForm(forms.Form):
         label='Puntualidad',
         initial='1',
     )
+    grade_letter = forms.ChoiceField(
+        choices=[('', '— Sin nota —')] + list(Assignment.GRADE_LETTER_CHOICES),
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+        label='Nota',
+        required=False,
+    )
+    grade_score = forms.IntegerField(
+        min_value=0,
+        max_value=10,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm',
+            'min': '0',
+            'max': '10',
+            'step': '1',
+            'placeholder': '0-10',
+        }),
+        label='Nota (0 a 10)',
+        required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.assignment = kwargs.pop('assignment', None)
+        super().__init__(*args, **kwargs)
+        evaluation_type = (
+            self.assignment.evaluation_type
+            if self.assignment is not None
+            else Assignment.EVALUATION_LETTER
+        )
+        if evaluation_type == Assignment.EVALUATION_NUMERIC:
+            self.fields.pop('grade_letter', None)
+        else:
+            self.fields.pop('grade_score', None)
+
+    def clean_grade_score(self):
+        score = self.cleaned_data.get('grade_score')
+        if score is None:
+            return None
+        return score
+
 
 
 class FeedbackForm(forms.Form):

@@ -100,7 +100,12 @@
                                 <tr>
                                     <td>
                                         <strong>{{ item.student.get_full_name|default:item.student.username }}</strong>
-                                        {% if item.is_collaborator %}<span class="badge bg-secondary ms-1" title="Entrega colaborativa">Colaborador</span>{% endif %}
+                                        {% if item.is_collaborator %}
+                                        <span class="badge bg-secondary ms-1" title="Entrega colaborativa">Colaborador</span>
+                                        {% if item.latest_submission %}
+                                        <br><small class="text-muted">Entrega de {{ item.latest_submission.student.get_full_name|default:item.latest_submission.student.username }}</small>
+                                        {% endif %}
+                                        {% endif %}
                                         <br><small class="text-muted">{{ item.student.email }}</small>
                                     </td>
                                     <td>
@@ -190,6 +195,20 @@
                                         {% if not assignment.allow_student_upload and can_manage %}
                                         <form method="post" action="{% url 'assignments:submission_teacher_mark' course.id unit.id tema.id assignment.id item.student.id %}" class="mt-2">
                                             {% csrf_token %}
+                                            <div class="mb-1">
+                                                {% if assignment.evaluation_type == 'numeric' %}
+                                                <input type="number" name="grade_score" class="form-control form-control-sm" min="0" max="10" step="1" placeholder="Nota 0-10 (opc.)"
+                                                       value="{% if item.latest_submission.grade_score is not None %}{{ item.latest_submission.grade_score }}{% endif %}">
+                                                {% else %}
+                                                <select name="grade_letter" class="form-select form-select-sm">
+                                                    <option value="">Nota (opc.)</option>
+                                                    <option value="R" {% if item.latest_submission.grade_letter == 'R' %}selected{% endif %}>R</option>
+                                                    <option value="B" {% if item.latest_submission.grade_letter == 'B' %}selected{% endif %}>B</option>
+                                                    <option value="MB" {% if item.latest_submission.grade_letter == 'MB' %}selected{% endif %}>MB</option>
+                                                    <option value="E" {% if item.latest_submission.grade_letter == 'E' %}selected{% endif %}>E</option>
+                                                </select>
+                                                {% endif %}
+                                            </div>
                                             <div class="btn-group btn-group-sm" role="group">
                                                 <button type="submit" name="on_time" value="1" class="btn btn-outline-success" title="Marcar a tiempo">
                                                     <i class="fas fa-clock"></i> A tiempo
@@ -204,6 +223,17 @@
                                         <form method="post" action="{% url 'assignments:submission_teacher_mark' course.id unit.id tema.id assignment.id item.student.id %}">
                                             {% csrf_token %}
                                             <div class="d-flex flex-column gap-1">
+                                                {% if assignment.evaluation_type == 'numeric' %}
+                                                <input type="number" name="grade_score" class="form-control form-control-sm" min="0" max="10" step="1" placeholder="Nota 0-10 (opc.)">
+                                                {% else %}
+                                                <select name="grade_letter" class="form-select form-select-sm">
+                                                    <option value="">Nota (opc.)</option>
+                                                    <option value="R">R</option>
+                                                    <option value="B">B</option>
+                                                    <option value="MB">MB</option>
+                                                    <option value="E">E</option>
+                                                </select>
+                                                {% endif %}
                                                 <button type="submit" name="on_time" value="1" class="btn btn-sm btn-success">
                                                     <i class="fas fa-check"></i> Entregó a tiempo
                                                 </button>
