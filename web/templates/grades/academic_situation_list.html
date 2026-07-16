@@ -2,8 +2,94 @@
 
 {% block title %}Situación Académica - {{ course.title }}{% endblock %}
 
+{% block extra_head %}
+<style>
+    .grades-sheet-wrap {
+        max-height: min(75vh, 900px);
+        overflow: auto;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        border-radius: .375rem;
+    }
+    .grades-sheet {
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+    .grades-sheet thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #f8f9fa;
+        vertical-align: bottom;
+        box-shadow: inset 0 -1px 0 var(--bs-border-color, #dee2e6);
+    }
+    .grades-sheet th.grades-sticky,
+    .grades-sheet td.grades-sticky {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background-color: var(--bs-body-bg, #fff);
+        min-width: 12rem;
+        max-width: 16rem;
+        box-shadow: 2px 0 4px rgba(0, 0, 0, .06);
+    }
+    .grades-sheet thead th.grades-sticky {
+        z-index: 4;
+        background-color: #f8f9fa;
+    }
+    .grades-sheet tbody tr:nth-of-type(odd) > td.grades-sticky {
+        background-color: var(--bs-table-striped-bg, #f2f2f2);
+    }
+    .grades-sheet tbody tr:hover > td.grades-sticky {
+        background-color: var(--bs-table-hover-bg, #ececec);
+    }
+    .grades-sheet .eval-col {
+        min-width: 3.25rem;
+        max-width: 5.5rem;
+        text-align: center;
+        padding-left: .35rem;
+        padding-right: .35rem;
+    }
+    .grades-sheet .eval-head {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        max-height: 9.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        font-size: .78rem;
+        line-height: 1.15;
+        white-space: nowrap;
+    }
+    .grades-sheet .eval-kind {
+        display: block;
+        font-size: .65rem;
+        font-weight: 500;
+        color: #6c757d;
+        margin-bottom: .15rem;
+    }
+    .grades-sheet .cell-grade {
+        font-weight: 600;
+    }
+    .grades-sheet .cell-submitted {
+        color: #856404;
+        font-size: .8rem;
+    }
+    .grades-sheet .cell-missing {
+        color: #adb5bd;
+    }
+    .grades-sheet .cell-na {
+        color: #ced4da;
+        font-size: .75rem;
+    }
+    .grades-sheet .formal-col {
+        text-align: center;
+        min-width: 4rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container">
+<div class="container-fluid px-3 px-lg-4">
     <div class="card shadow mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h4 class="mb-0"><i class="fas fa-graduation-cap"></i> Situación Académica</h4>
@@ -13,7 +99,17 @@
         </div>
         <div class="card-body">
             <h5>{{ course.title }}</h5>
-            <p class="text-muted">Valoraciones (TEP/TEA) y notas formales por cuatrimestre.</p>
+            <p class="text-muted mb-2">
+                Planilla con notas de tareas y exámenes publicados.
+                Las valoraciones y notas formales de cuatrimestre se cargan en el detalle de cada alumno.
+            </p>
+            <p class="small text-muted mb-4">
+                <span class="me-3"><i class="fas fa-tasks text-primary"></i> Tarea</span>
+                <span class="me-3"><i class="fas fa-file-alt text-success"></i> Examen</span>
+                <span class="me-3"><span class="cell-submitted">ent.</span> = entregado sin nota</span>
+                <span class="me-3"><span class="cell-missing">—</span> = sin entrega</span>
+                <span><span class="cell-na">n/a</span> = no corresponde</span>
+            </p>
 
             <form method="get" class="row g-3 mb-4 align-items-end">
                 <div class="col-md-3">
@@ -32,64 +128,89 @@
             </form>
 
             {% if rows %}
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
+            <div class="grades-sheet-wrap">
+                <table class="table table-sm table-striped table-hover align-middle grades-sheet">
                     <thead>
                         <tr>
-                            <th>Alumno</th>
-                            <th class="text-center">Val. C1</th>
-                            <th class="text-center">Val. C2</th>
-                            <th class="text-center">Nota C1</th>
-                            <th class="text-center">Nota C2</th>
-                            <th class="text-center">Promedio</th>
-                            <th class="text-center">Pendientes</th>
-                            <th class="text-center">Acciones</th>
+                            <th class="grades-sticky">Alumno</th>
+                            {% for col in evaluation_columns %}
+                            <th class="eval-col" title="{{ col.kind_label }}: {{ col.title }}">
+                                <span class="eval-kind">
+                                    {% if col.kind == 'assignment' %}
+                                    <i class="fas fa-tasks"></i>
+                                    {% else %}
+                                    <i class="fas fa-file-alt"></i>
+                                    {% endif %}
+                                </span>
+                                <div class="eval-head">{{ col.short_title }}</div>
+                            </th>
+                            {% endfor %}
+                            <th class="formal-col">Val. C1</th>
+                            <th class="formal-col">Val. C2</th>
+                            <th class="formal-col">Nota C1</th>
+                            <th class="formal-col">Nota C2</th>
+                            <th class="formal-col">Promedio</th>
+                            <th class="formal-col">Pendientes</th>
+                            <th class="formal-col">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in rows %}
                         <tr>
-                            <td>
+                            <td class="grades-sticky">
                                 <a href="{% url 'grades:academic_situation_student' course.id row.student.id %}?year={{ year }}">
                                     {{ row.student.get_full_name|default:row.student.username }}
                                 </a>
                             </td>
-                            <td class="text-center">
+                            {% for cell in row.eval_cells %}
+                            <td class="eval-col" title="{{ cell.title }}">
+                                {% if cell.status == 'graded' %}
+                                <span class="cell-grade">{{ cell.grade_display }}</span>
+                                {% elif cell.status == 'submitted' %}
+                                <span class="cell-submitted" title="Entregado sin nota">ent.</span>
+                                {% elif cell.status == 'na' %}
+                                <span class="cell-na">n/a</span>
+                                {% else %}
+                                <span class="cell-missing">—</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="formal-col">
                                 {% if row.situation.semester_1_valuation %}
                                 <span class="badge bg-info">{{ row.situation.semester_1_valuation }}</span>
                                 {% else %}
                                 <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 {% if row.situation.semester_2_valuation %}
                                 <span class="badge bg-info">{{ row.situation.semester_2_valuation }}</span>
                                 {% else %}
                                 <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 {% if row.situation.semester_1_grade is not None %}
                                 {{ row.situation.semester_1_grade }}
                                 {% else %}
                                 <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 {% if row.situation.semester_2_grade is not None %}
                                 {{ row.situation.semester_2_grade }}
                                 {% else %}
                                 <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 {% if row.situation.average_grade is not None %}
                                 <strong>{{ row.situation.average_grade }}</strong>
                                 {% else %}
                                 <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 {% if row.is_complete %}
                                 <span class="badge bg-success">Completo</span>
                                 {% else %}
@@ -105,7 +226,7 @@
                                 {% endif %}
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="formal-col">
                                 <a href="{% url 'grades:academic_situation_student' course.id row.student.id %}?year={{ year }}"
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-eye"></i> Ver
@@ -116,6 +237,11 @@
                     </tbody>
                 </table>
             </div>
+            {% if not evaluation_columns %}
+            <p class="text-muted small mt-3 mb-0">
+                No hay tareas ni exámenes publicados todavía. Cuando los haya, aparecerán como columnas.
+            </p>
+            {% endif %}
             {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>

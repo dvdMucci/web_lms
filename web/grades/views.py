@@ -7,8 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from assignments.models import Assignment, AssignmentSubmission
-from assignments.services import get_effective_submission
+from assignments.models import Assignment
+from assignments.services import get_effective_submission, map_effective_submissions
 from courses.models import Course, Enrollment
 from courses.utils import can_view_course_as_teacher
 from quizzes.models import ExamAttempt, ThemeExam
@@ -17,6 +17,178 @@ from .forms import AcademicSituationForm
 from .models import AcademicSituation
 
 User = get_user_model()
+
+_EVAL_ORDER = (
+    'tema__unit__order',
+    'tema__unit_id',
+    'tema__order',
+    'tema_id',
+)
+
+
+def _short_title(title, max_len=22):
+    text = (title or '').strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + '…'
+
+
+def _cell_from_submission(submission):
+    has_submission = submission is not None
+    has_grade = bool(submission and submission.has_grade())
+    return {
+        'grade_display': submission.get_grade_display() if has_grade else None,
+        'has_grade': has_grade,
+        'has_submission': has_submission,
+        'status': (
+            'graded' if has_grade
+            else 'submitted' if has_submission
+            else 'missing'
+        ),
+    }
+
+
+def _format_exam_score(score):
+    if score is None:
+        return None
+    if score == score.to_integral_value():
+        return str(int(score))
+    return f'{score:.2f}'.rstrip('0').rstrip('.')
+
+
+def _cell_from_attempt(attempt):
+    has_submission = attempt is not None
+    has_grade = attempt is not None and attempt.score is not None
+    return {
+        'grade_display': _format_exam_score(attempt.score) if has_grade else None,
+        'has_grade': has_grade,
+        'has_submission': has_submission,
+        'status': (
+            'graded' if has_grade
+            else 'submitted' if has_submission
+            else 'missing'
+        ),
+    }
+
+
+def _empty_cell(status='missing'):
+    return {
+        'grade_display': None,
+        'has_grade': False,
+        'has_submission': False,
+        'status': status,
+    }
+
+
+def _build_course_grade_matrix(course, students):
+    """
+    Build spreadsheet columns and per-student grade cells for published
+    assignments and exams in the course.
+    """
+    student_list = list(students)
+    student_ids = [s.id for s in student_list]
+
+    assignments = list(
+        Assignment.objects.filter(course=course, is_published=True)
+        .select_related('tema', 'tema__unit')
+        .prefetch_related('target_students')
+        .order_by(*_EVAL_ORDER, 'due_date', 'created_at')
+    )
+    exams = list(
+        ThemeExam.objects.filter(course=course, is_published=True)
+        .select_related('tema', 'tema__unit')
+        .order_by(*_EVAL_ORDER, 'available_from', 'created_at')
+    )
+
+    columns = []
+    # Interleave by unit/tema order: build sortable tuples then merge
+    column_items = []
+    for assignment in assignments:
+        unit = assignment.tema.unit if assignment.tema_id else None
+        column_items.append((
+            (
+                unit.order if unit else 0,
+                unit.id if unit else 0,
+                assignment.tema.order if assignment.tema_id else 0,
+                assignment.tema_id or 0,
+                0,  # assignments before exams on same tema
+                assignment.due_date.timestamp() if assignment.due_date else 0,
+                assignment.id,
+            ),
+            {
+                'key': f'a-{assignment.id}',
+                'kind': 'assignment',
+                'kind_label': 'Tarea',
+                'title': assignment.title,
+                'short_title': _short_title(assignment.title),
+                'object': assignment,
+            },
+        ))
+    for exam in exams:
+        unit = exam.tema.unit if exam.tema_id else None
+        column_items.append((
+            (
+                unit.order if unit else 0,
+                unit.id if unit else 0,
+                exam.tema.order if exam.tema_id else 0,
+                exam.tema_id or 0,
+                1,
+                exam.available_from.timestamp() if exam.available_from else 0,
+                exam.id,
+            ),
+            {
+                'key': f'e-{exam.id}',
+                'kind': 'exam',
+                'kind_label': 'Examen',
+                'title': exam.title,
+                'short_title': _short_title(exam.title),
+                'object': exam,
+            },
+        ))
+    column_items.sort(key=lambda item: item[0])
+    columns = [item[1] for item in column_items]
+
+    # target_students: empty M2M => visible to all
+    targeted_by_assignment = {}
+    for assignment in assignments:
+        targets = list(assignment.target_students.values_list('id', flat=True))
+        targeted_by_assignment[assignment.id] = set(targets) if targets else None
+
+    grades_by_student = {
+        sid: {col['key']: _empty_cell() for col in columns}
+        for sid in student_ids
+    }
+
+    for assignment in assignments:
+        key = f'a-{assignment.id}'
+        allowed = targeted_by_assignment[assignment.id]
+        effective = map_effective_submissions(assignment, student_list)
+        for student in student_list:
+            sid = student.id
+            if allowed is not None and sid not in allowed:
+                grades_by_student[sid][key] = _empty_cell('na')
+                continue
+            entry = effective.get(sid) or {}
+            grades_by_student[sid][key] = _cell_from_submission(entry.get('submission'))
+
+    if exams and student_ids:
+        attempts = ExamAttempt.objects.filter(
+            exam__in=exams,
+            student_id__in=student_ids,
+            submitted_at__isnull=False,
+        )
+        attempt_map = {}
+        for attempt in attempts:
+            # keep one attempt per (exam, student); model is typically unique
+            attempt_map[(attempt.exam_id, attempt.student_id)] = attempt
+        for exam in exams:
+            key = f'e-{exam.id}'
+            for sid in student_ids:
+                grades_by_student[sid][key] = _cell_from_attempt(
+                    attempt_map.get((exam.id, sid))
+                )
+
+    return columns, grades_by_student
 
 
 def _user_can_edit(user, course):
@@ -176,27 +348,36 @@ def academic_situation_list(request, course_id):
 
     year = _parse_year(request)
     enrollments = _get_approved_students(course)
+    students = [enrollment.student for enrollment in enrollments]
     situations = {
         s.student_id: s
         for s in AcademicSituation.objects.filter(course=course, year=year)
     }
+    evaluation_columns, grades_by_student = _build_course_grade_matrix(course, students)
 
     rows = []
-    for enrollment in enrollments:
-        student = enrollment.student
+    for student in students:
         situation = situations.get(student.id) or _empty_situation(student)
+        cells_map = grades_by_student.get(student.id, {})
+        eval_cells = []
+        for col in evaluation_columns:
+            cell = dict(cells_map.get(col['key'], _empty_cell()))
+            cell['title'] = f"{col['kind_label']}: {col['title']}"
+            eval_cells.append(cell)
         rows.append({
             'student': student,
             'situation': situation,
             'missing_valuations': situation.missing_valuations_count(),
             'missing_grades': situation.missing_grades_count(),
             'is_complete': situation.is_complete() if situation.pk else False,
+            'eval_cells': eval_cells,
         })
 
     return render(request, 'grades/academic_situation_list.html', {
         'course': course,
         'year': year,
         'rows': rows,
+        'evaluation_columns': evaluation_columns,
         'can_edit': _user_can_edit(request.user, course),
         'current_year': timezone.localdate().year,
     })

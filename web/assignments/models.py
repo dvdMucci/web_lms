@@ -358,8 +358,7 @@ class AssignmentSubmission(models.Model):
             return str(self.grade_score)
         if not self.grade_letter:
             return None
-        labels = dict(Assignment.GRADE_LETTER_CHOICES)
-        return labels.get(self.grade_letter, self.grade_letter)
+        return self.grade_letter
 
     def get_next_version(self):
         """Get the next version number for this student's submission"""
