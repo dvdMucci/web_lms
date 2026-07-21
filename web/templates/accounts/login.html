@@ -93,7 +93,7 @@
                 <h4 class="mb-0">Acceso Usuarios</h4>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" id="login-form">
                     {% csrf_token %}
                     
                     <div class="mb-3">
@@ -127,10 +127,16 @@
                         </div>
                     {% endif %}
                     
-                    <button type="submit" class="btn btn-login-submit w-100">
+                    <button type="submit" class="btn btn-login-submit w-100" id="login-submit">
                         <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
                     </button>
                 </form>
+                <script>
+                document.getElementById('login-form').addEventListener('submit', function () {
+                    var btn = document.getElementById('login-submit');
+                    if (btn) { btn.disabled = true; btn.innerHTML = 'Ingresando…'; }
+                });
+                </script>
                 <p class="text-muted mt-3 mb-0 small text-center">
                     El registro de alumnos se realiza por enlace o QR temporal entregado por el docente.
                 </p>

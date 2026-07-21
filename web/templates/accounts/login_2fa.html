@@ -26,7 +26,7 @@
                     (Google Authenticator, Authy, etc.).
                 </p>
 
-                <form method="post" autocomplete="off">
+                <form method="post" autocomplete="off" id="login-2fa-form">
                     {% csrf_token %}
                     <div class="mb-4">
                         <label for="token" class="form-label fw-semibold">Código TOTP</label>
@@ -44,11 +44,17 @@
                         >
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-login-submit btn-lg">
+                        <button type="submit" class="btn btn-login-submit btn-lg" id="login-2fa-submit">
                             <i class="fas fa-check-circle me-1"></i> Verificar
                         </button>
                     </div>
                 </form>
+                <script>
+                document.getElementById('login-2fa-form').addEventListener('submit', function () {
+                    var btn = document.getElementById('login-2fa-submit');
+                    if (btn) { btn.disabled = true; btn.innerHTML = 'Verificando…'; }
+                });
+                </script>
             </div>
             <div class="card-footer text-center py-3">
                 <a href="{% url 'login' %}" class="text-muted small">
