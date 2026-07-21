@@ -1,0 +1,17 @@
+# Sin esto, el COPY . . del Dockerfile se llevaba adentro de la imagen el log de
+# publish_scheduled_content (378 MB) y todo staticfiles/ regenerado.
+logs/
+staticfiles/
+media/
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+.git/
+.gitignore
+.env
+*.sqlite3
+.maintenance_on
+.dockerenv

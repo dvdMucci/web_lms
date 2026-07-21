@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Q, Count, Exists, OuterRef
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, FileResponse, Http404
 from django.urls import reverse
 from datetime import datetime, time
 import json
@@ -77,30 +77,40 @@ def _resolve_submission_file_field(submission, attachment_id=None):
     return None, None
 
 
-def _http_response_from_uploaded_file(field_file, filename, *, inline):
-    """Lee desde almacenamiento (local o remoto) y arma HttpResponse."""
-    with field_file.open('rb') as f:
-        data = f.read()
+def _content_type_for(filename):
     content_type, _ = mimetypes.guess_type(filename)
-    if not content_type:
-        ext = os.path.splitext(filename)[1].lower()
-        content_type_map = {
-            '.pdf': 'application/pdf',
-            '.doc': 'application/msword',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.ppt': 'application/vnd.ms-powerpoint',
-            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            '.xls': 'application/vnd.ms-excel',
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-        }
-        content_type = content_type_map.get(ext, 'application/octet-stream')
-    response = HttpResponse(data, content_type=content_type)
-    disp = 'inline' if inline else 'attachment'
-    response['Content-Disposition'] = f'{disp}; filename="{filename}"'
-    return response
+    if content_type:
+        return content_type
+    ext = os.path.splitext(filename)[1].lower()
+    content_type_map = {
+        '.pdf': 'application/pdf',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+    }
+    return content_type_map.get(ext, 'application/octet-stream')
+
+
+def _http_response_from_uploaded_file(field_file, filename, *, inline):
+    """Entrega el archivo por streaming desde el almacenamiento (local o s3fs).
+
+    Antes hacia field_file.read() completo en memoria: hasta 50 MB por descarga
+    (el limite de subida), leidos desde el bucket montado por s3fs, antes de mandar
+    el primer byte. Unas pocas descargas concurrentes de archivos grandes se comian
+    la RAM del contenedor. FileResponse lee en bloques y arma el Content-Disposition.
+    """
+    return FileResponse(
+        field_file.open('rb'),
+        content_type=_content_type_for(filename),
+        as_attachment=not inline,
+        filename=filename,
+    )
 
 
 @login_required

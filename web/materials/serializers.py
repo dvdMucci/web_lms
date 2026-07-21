@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Material
 from django.conf import settings
+from django.urls import reverse
 
 class MaterialSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source="uploaded_by.get_full_name", read_only=True)
@@ -12,17 +13,25 @@ class MaterialSerializer(serializers.ModelSerializer):
     class Meta:
         model = Material
         fields = [
+            # "file" se quito a proposito: DRF lo serializa como obj.file.url, o sea una
+            # URL directa a /media/, que ya no se expone publicamente (ver web/urls.py).
             "id", "title", "description", "course", "course_title",
-            "uploaded_by", "uploaded_by_name", "file", "file_url",
+            "uploaded_by", "uploaded_by_name", "file_url",
             "visibility", "uploaded_at", "file_size", "file_type",
             "tema", "tema_title", "unit_title"
         ]
         read_only_fields = ["uploaded_at", "uploaded_by", "uploaded_by_name", "course_title", "file_url", "file_size", "file_type"]
 
     def get_file_url(self, obj):
-        if obj.file:
-            return obj.file.url
-        return None
+        """URL de descarga autenticada, no la ruta cruda en /media/.
+
+        MaterialDownloadView valida CanViewMaterial antes de entregar el archivo.
+        """
+        if not obj.file:
+            return None
+        url = reverse("materials:material-download", kwargs={"pk": obj.pk})
+        request = self.context.get("request")
+        return request.build_absolute_uri(url) if request else url
 
     def create(self, validated_data):
         # Set the uploaded_by to the current user

@@ -25,10 +25,16 @@ class Command(BaseCommand):
         # Hora local para el log (Argentina u la TIME_ZONE de settings)
         local_now = timezone.localtime(now)
 
+        # Este comando corre cada minuto desde cron. Escribir "revisando..." y "no hay
+        # nada" en cada corrida genero un log de 378 MB y 5.467.457 lineas. Ahora esas
+        # dos lineas solo salen con -v 2; el log queda con los eventos reales.
+        verbosity = options.get('verbosity', 1)
+
         tz_name = getattr(settings, 'TIME_ZONE', 'UTC')
-        self.stdout.write(
-            self.style.NOTICE(f'[{local_now.strftime("%Y-%m-%d %H:%M:%S")} {tz_name}] Revisando publicaciones programadas...')
-        )
+        if verbosity >= 2:
+            self.stdout.write(
+                self.style.NOTICE(f'[{local_now.strftime("%Y-%m-%d %H:%M:%S")} {tz_name}] Revisando publicaciones programadas...')
+            )
 
         published_materials = 0
         published_assignments = 0
@@ -151,16 +157,18 @@ class Command(BaseCommand):
         if total_published > 0:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'\n✓ Publicados {published_temas} temas, {published_materials} materiales y {published_assignments} tareas.'
+                    f'[{local_now.strftime("%Y-%m-%d %H:%M:%S")} {tz_name}] '
+                    f'Publicados {published_temas} temas, {published_materials} materiales '
+                    f'y {published_assignments} tareas.'
                 )
             )
             if emails_sent > 0:
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f'✓ Enviados {emails_sent} correos de notificación.'
+                        f'Encolados {emails_sent} correos de notificación.'
                     )
                 )
-        else:
+        elif verbosity >= 2:
             self.stdout.write(
                 self.style.SUCCESS('No hay contenido programado para publicar en este momento.')
             )

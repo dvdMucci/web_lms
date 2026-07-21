@@ -5,8 +5,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponse, Http404
-from django.core.files.storage import default_storage
+from django.http import FileResponse, Http404
 from .models import Material
 from .serializers import MaterialSerializer, MaterialUploadSerializer
 from courses.models import Enrollment, Course
@@ -174,23 +173,25 @@ class MaterialDownloadView(APIView):
             )
 
         # Serve the file
+        # Streaming con FileResponse en vez de leer el archivo entero en memoria.
+        # Se usa material.file.open(), que pasa por el storage configurado, en lugar
+        # del default_storage.open(material.file.path) anterior: ese armaba una ruta
+        # absoluta del filesystem y solo funcionaba de casualidad.
         if material.file:
             try:
-                file_path = material.file.path
-                with default_storage.open(file_path, 'rb') as f:
-                    response = HttpResponse(
-                        f.read(),
-                        content_type='application/octet-stream'
-                    )
-                    # Use original filename if available, otherwise use stored filename
-                    filename = material.original_filename if material.original_filename else material.file.name.split("/")[-1]
-                    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-                    log_user_activity(
-                        action=UserActivityLog.ACTION_MATERIAL_DOWNLOADED,
-                        actor=request.user,
-                        details=f'Material "{material.title}" descargado',
-                    )
-                    return response
+                filename = material.original_filename or material.file.name.split("/")[-1]
+                response = FileResponse(
+                    material.file.open('rb'),
+                    content_type='application/octet-stream',
+                    as_attachment=True,
+                    filename=filename,
+                )
+                log_user_activity(
+                    action=UserActivityLog.ACTION_MATERIAL_DOWNLOADED,
+                    actor=request.user,
+                    details=f'Material "{material.title}" descargado',
+                )
+                return response
             except FileNotFoundError:
                 raise Http404("Archivo no encontrado.")
 

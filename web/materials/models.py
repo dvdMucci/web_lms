@@ -177,12 +177,10 @@ def update_file_info(sender, instance, created, **kwargs):
             # Verificar umbral de almacenamiento después de subir un archivo
             if created and instance.file:
                 try:
-                    from core.services.storage import check_storage_threshold
-                    # Invalidar caché para obtener datos frescos
-                    from django.core.cache import cache
-                    cache.delete('storage_usage_stats')
-                    # Verificar el umbral de almacenamiento
-                    check_storage_threshold()
+                    from core.services.storage import check_storage_threshold_async
+                    # Suma el tamano al cache y evalua el umbral fuera del request:
+                    # escanear el bucket aca bloqueaba la subida contra Ashburn.
+                    check_storage_threshold_async(added_bytes=file_size)
                 except Exception as e:
                     import logging
                     logger = logging.getLogger(__name__)

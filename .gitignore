@@ -202,3 +202,10 @@ web/staticfiles/
 # Env volcado por el contenedor para cron (contiene secretos)
 .dockerenv
 web/.dockerenv
+# Artefactos de Claude Code: .claude/worktrees/ llego a commitearse por error.
+.claude/
+
+# Copias de seguridad locales (docker-compose.yml.bak.traefik y similares).
+*.bak
+*.bak.*
+.maintenance_on

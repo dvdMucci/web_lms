@@ -159,7 +159,18 @@ class LoginForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
-    
+
+    def _is_locked_out(self, username):
+        """True si django-axes tiene bloqueada la combinacion usuario+IP."""
+        if self.request is None:
+            return False
+        try:
+            from axes.handlers.proxy import AxesProxyHandler
+            return AxesProxyHandler.is_locked(self.request, {'username': username})
+        except Exception:
+            # Nunca dejar que un fallo de axes rompa el login.
+            return False
+
     def clean(self):
         username = self.cleaned_data.get('username')
         password = self.cleaned_data.get('password')
@@ -167,12 +178,21 @@ class LoginForm(forms.Form):
         
         if username and password:
             self.user_cache = authenticate(
-                self.request, 
-                username=username, 
+                self.request,
+                username=username,
                 password=password
             )
-            
+
             if self.user_cache is None:
+                # django-axes bloquea lanzando PermissionDenied desde su backend, pero
+                # django.contrib.auth.authenticate() lo atrapa y devuelve None, asi que
+                # sin este chequeo el usuario bloqueado veria "Credenciales invalidas"
+                # y seguiria probando sin entender por que no entra.
+                if self._is_locked_out(username):
+                    raise forms.ValidationError(
+                        "Demasiados intentos fallidos. El acceso a esta cuenta quedó "
+                        "bloqueado temporalmente; volvé a intentar en 30 minutos."
+                    )
                 raise forms.ValidationError("Credenciales inválidas")
             
             if not self.user_cache.is_active:

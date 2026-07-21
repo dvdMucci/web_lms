@@ -1,8 +1,7 @@
 services:
-  # 1. Contenedor de la Base de Datos
   db:
-    image: mariadb:10.11 # Funciona con esta versión
-    container_name: db_service
+    image: mariadb:10.11
+    container_name: db_service_lms_brazil
     restart: always
     volumes:
       - ./mariadb_data:/var/lib/mysql
@@ -11,43 +10,64 @@ services:
       MARIADB_DATABASE: ${DB_NAME}
       MARIADB_USER: ${DB_USER}
       MARIADB_PASSWORD: ${DB_PASSWORD}
-    
-  # 2. Contenedor de la Aplicación Web (Django)
+    # Sin healthcheck, `web` arrancaba apenas existia el contenedor de la base, no
+    # cuando la base aceptaba conexiones. Al reiniciar el VPS eso era una carrera.
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
-    container_name: web__lms_app
+    container_name: web_lms_app_brazil
     restart: always
     volumes:
-      - ./web:/app  # Mapea tu código local para desarrollo en tiempo real
-      - /home/ubuntu/marinaOjedaS3:/home/ubuntu/marinaOjedaS3:rw  # Monta el bucket de Oracle OCI para archivos media
-    command:
-      - sh
-      - -c
-      - |
-        mkdir -p /app/logs
-        crontab /app/crontab 2>/dev/null || true
-        cron &
-        ./wait-for-db.sh sh -c 'python manage.py makemigrations accounts && python manage.py makemigrations assignments && python manage.py makemigrations core && python manage.py makemigrations courses && python manage.py makemigrations attendance && python manage.py makemigrations grades && python manage.py makemigrations materials && python manage.py makemigrations units && python manage.py makemigrations quizzes && python manage.py migrate && python create_superuser.py && exec python manage.py runserver 0.0.0.0:8000'
-    ports:
-      - "5801:8000"
-    # Variables de Django (DJANGO_DEBUG, DJANGO_SECRET_KEY, DB_*, etc.) van en ./.env del host.
-    # Tras editar .env: docker compose up -d --force-recreate web (restart no actualiza env_file).
+      - ./web:/app
+      - /home/ubuntu/marinaOjedaS3:/home/ubuntu/marinaOjedaS3:rw
+    # El comando vive en entrypoint.sh (collectstatic + migrate + gunicorn).
+    # Antes era `runserver 0.0.0.0:8000 --noreload`, el servidor de desarrollo.
+    #
+    # Ya NO se publica el puerto 5801 en el host. Estaba expuesto a internet en texto
+    # plano y salteaba Traefik: se podia entrar por http://<ip>:5801 y las
+    # contrasenas del login viajaban sin cifrar. El sitio se sirve solo por Traefik
+    # (red traefik, TLS de Cloudflare), que llega al contenedor por el puerto 8000
+    # interno segun traefik/dynamic.yml.
     env_file:
       - ./.env
     environment:
       TZ: America/Argentina/Buenos_Aires
-      DJANGO_SUPERUSER_USERNAME: admin
-      DJANGO_SUPERUSER_EMAIL: admin@example.com
-      DJANGO_SUPERUSER_PASSWORD: admin123
     depends_on:
-      - db # No intentes iniciar la web hasta que la base de datos esté lista
+      db:
+        condition: service_healthy
+    healthcheck:
+      # /healthz comprueba proceso + base, y esta exento del modo mantenimiento.
+      # X-Forwarded-Proto para que SECURE_SSL_REDIRECT no responda un 301 al chequeo.
+      test: ["CMD", "curl", "-fsS", "-H", "X-Forwarded-Proto: https", "-H", "Host: marinaojeda.ar", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - default
-      - nginx_proxy
+      - traefik
 
 networks:
-  nginx_proxy:
+  traefik:
     external: true
-    name: ngnixproxymanager_default
+    name: traefik_default

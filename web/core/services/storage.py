@@ -1,5 +1,7 @@
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
@@ -8,10 +10,22 @@ logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
+CACHE_KEY = 'storage_usage_stats'
+CACHE_TTL_SECONDS = 300
+
+# Un solo hilo: el escaneo del bucket es caro y no tiene sentido correr dos a la vez.
+_STORAGE_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix='storage')
+
 
 def get_directory_size(path):
     """
     Calcula el tamaño total de un directorio en bytes.
+
+    OJO: MEDIA_ROOT es un bucket de Oracle montado con s3fs (y ademas en otra region,
+    us-ashburn-1). Cada os.path.getsize() de aca es una llamada HTTP a traves de FUSE,
+    asi que recorrer el arbol entero cuesta miles de round-trips transatlanticos.
+    Nunca llamar a esto desde el hilo que atiende un request: usar get_storage_usage()
+    (que cachea) o check_storage_threshold_async().
     """
     total_size = 0
     try:
@@ -35,12 +49,12 @@ def get_storage_usage():
     
     Cachéa el resultado por 5 minutos para evitar cálculos repetidos costosos.
     """
-    cache_key = 'storage_usage_stats'
+    cache_key = CACHE_KEY
     cached_result = cache.get(cache_key)
-    
+
     if cached_result is not None:
         return cached_result
-    
+
     try:
         media_root = settings.MEDIA_ROOT
         
@@ -101,8 +115,8 @@ def get_storage_usage():
         }
         
         # Cachear el resultado por 5 minutos
-        cache.set(cache_key, result, 300)
-        
+        cache.set(cache_key, result, CACHE_TTL_SECONDS)
+
         return result
     
     except Exception as e:
@@ -118,11 +132,59 @@ def get_storage_usage():
         }
 
 
+def bump_cached_usage(delta_bytes):
+    """Ajusta el total cacheado sin volver a escanear el bucket.
+
+    Cuando se sube un archivo ya sabemos cuanto ocupa, asi que sumarlo al valor
+    cacheado da un numero suficientemente exacto por una fraccion del costo. Antes el
+    codigo hacia cache.delete() en cada subida, lo que forzaba un os.walk completo del
+    bucket en el siguiente acceso, justo en el peor momento.
+    """
+    if not delta_bytes:
+        return
+    cached = cache.get(CACHE_KEY)
+    if cached is None:
+        return
+
+    used_bytes = max(0, cached.get('used_bytes', 0) + delta_bytes)
+    total_bytes = cached.get('total_bytes', 0)
+    available_bytes = max(0, total_bytes - used_bytes)
+
+    cached.update({
+        'used_bytes': used_bytes,
+        'used_gb': round(used_bytes / (1024 ** 3), 2),
+        'used_mb': round(used_bytes / (1024 ** 2), 2),
+        'available_bytes': available_bytes,
+        'available_gb': round(available_bytes / (1024 ** 3), 2),
+        'available_mb': round(available_bytes / (1024 ** 2), 2),
+        'used_percent': round((used_bytes / total_bytes * 100) if total_bytes else 0, 2),
+    })
+    cache.set(CACHE_KEY, cached, CACHE_TTL_SECONDS)
+
+
+def check_storage_threshold_async(added_bytes=0):
+    """Version para llamar desde signals: no bloquea el request.
+
+    El chequeo de umbral implicaba potencialmente un escaneo completo del bucket
+    dentro del post_save, o sea dentro de la transaccion del request. Ahora suma el
+    tamano del archivo al cache (instantaneo) y evalua el umbral en un hilo aparte.
+    """
+    bump_cached_usage(added_bytes)
+
+    def _run():
+        try:
+            check_storage_threshold()
+        except Exception:
+            logger.exception("Error al verificar umbral de almacenamiento en background")
+
+    _STORAGE_POOL.submit(_run)
+
+
 def check_storage_threshold():
     """
     Verifica si el uso del almacenamiento ha alcanzado el umbral de alerta.
     Si es así, envía una notificación por email.
-    
+
     Retorna True si se envió una alerta, False en caso contrario.
     """
     try:

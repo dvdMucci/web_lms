@@ -1,7 +1,56 @@
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
 from .services.mailgun import MailgunClient
+
+logger = logging.getLogger(__name__)
+
+
+# Pool acotado para los envios a Mailgun.
+#
+# Antes cada notify_* hacia un POST HTTP por destinatario, en serie, con timeout de
+# 10 s, dentro del request. Como ATOMIC_REQUESTS=True, publicar una tarea para 30
+# alumnos podia mantener abierta una transaccion de MariaDB varios minutos mientras
+# bloqueaba un worker. Ahora el request solo arma los mensajes (render de templates,
+# barato) y devuelve; el envio ocurre despues del commit, en estos hilos.
+#
+# ThreadPoolExecutor registra un atexit que espera a los hilos pendientes, asi que el
+# comando de cron publish_scheduled_content no termina dejando correos sin enviar.
+_EMAIL_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="mailgun")
+
+
+def _send_one(message):
+    try:
+        MailgunClient().send_message(**message)
+    except Exception:
+        logger.exception("Fallo el envio de un email a %s", message.get("to_email"))
+
+
+def _queue_emails(messages):
+    """Encola los mensajes para enviarse tras el commit. Devuelve cuantos se encolaron.
+
+    El valor de retorno pasa a ser "cuantos se van a enviar" en lugar de "cuantos se
+    entregaron". Los call sites lo usan solo para el mensaje de UI ("se enviaron N
+    notificaciones"), asi que la semantica visible no cambia. El resultado real de
+    cada envio queda en el log.
+
+    Encolar dentro de on_commit tambien arregla un bug que estaba de antes: si el
+    request fallaba despues de mandar los correos, la transaccion hacia rollback pero
+    los correos ya habian salido, avisando de contenido que terminaba no existiendo.
+    """
+    if not messages:
+        return 0
+
+    def _dispatch():
+        for message in messages:
+            _EMAIL_POOL.submit(_send_one, message)
+
+    transaction.on_commit(_dispatch)
+    return len(messages)
 
 
 def _full_name_or_username(user):
@@ -32,13 +81,13 @@ def notify_enrollment_created(enrollment):
     html = render_to_string("emails/enrollment_created.html", context)
     text = strip_tags(html)
 
-    return MailgunClient().send_message(
-        to_email=student.email,
-        subject=subject,
-        text=text,
-        html=html,
-        tags=["enrollment", "created"],
-    )
+    return bool(_queue_emails([{
+        "to_email": student.email,
+        "subject": subject,
+        "text": text,
+        "html": html,
+        "tags": ["enrollment", "created"],
+    }]))
 
 
 def notify_enrollment_status_changed(enrollment, previous_status=None):
@@ -58,13 +107,13 @@ def notify_enrollment_status_changed(enrollment, previous_status=None):
     html = render_to_string("emails/enrollment_status_changed.html", context)
     text = strip_tags(html)
 
-    return MailgunClient().send_message(
-        to_email=student.email,
-        subject=subject,
-        text=text,
-        html=html,
-        tags=["enrollment", "status"],
-    )
+    return bool(_queue_emails([{
+        "to_email": student.email,
+        "subject": subject,
+        "text": text,
+        "html": html,
+        "tags": ["enrollment", "status"],
+    }]))
 
 
 def notify_email_verification(user, verification_url):
@@ -80,13 +129,13 @@ def notify_email_verification(user, verification_url):
     html = render_to_string("emails/email_verification.html", context)
     text = strip_tags(html)
 
-    return MailgunClient().send_message(
-        to_email=user.email,
-        subject=subject,
-        text=text,
-        html=html,
-        tags=["email-verification"],
-    )
+    return bool(_queue_emails([{
+        "to_email": user.email,
+        "subject": subject,
+        "text": text,
+        "html": html,
+        "tags": ["email-verification"],
+    }]))
 
 
 def notify_storage_alert(usage_stats, storage_config):
@@ -141,13 +190,13 @@ def notify_storage_alert(usage_stats, storage_config):
     
     text = strip_tags(html)
     
-    return MailgunClient().send_message(
-        to_email=alert_email,
-        subject=subject,
-        text=text,
-        html=html,
-        tags=["storage", "alert"],
-    )
+    return bool(_queue_emails([{
+        "to_email": alert_email,
+        "subject": subject,
+        "text": text,
+        "html": html,
+        "tags": ["storage", "alert"],
+    }]))
 
 
 def notify_material_published(material):
@@ -165,9 +214,9 @@ def notify_material_published(material):
     if not enrollments.exists():
         return 0
     
-    sent_count = 0
+    messages = []
     material_url = None
-    
+
     # Construir URL del material (necesitarás ajustar según tu estructura de URLs)
     try:
         from django.urls import reverse
@@ -218,18 +267,15 @@ def notify_material_published(material):
             </html>
             """
         
-        text = strip_tags(html)
-        
-        if MailgunClient().send_message(
-            to_email=student.email,
-            subject=subject,
-            text=text,
-            html=html,
-            tags=["material", "published"],
-        ):
-            sent_count += 1
-    
-    return sent_count
+        messages.append({
+            "to_email": student.email,
+            "subject": subject,
+            "text": strip_tags(html),
+            "html": html,
+            "tags": ["material", "published"],
+        })
+
+    return _queue_emails(messages)
 
 
 def notify_forum_post(post):
@@ -279,23 +325,21 @@ def notify_forum_post(post):
             if _can_receive_student_email(enrollment.student):
                 recipients.append(enrollment.student)
 
-    sent = 0
+    messages = []
     for recipient in recipients:
         context = {
             **context_base,
             'recipient_name': _full_name_or_username(recipient),
         }
         html = render_to_string('emails/forum_notification.html', context)
-        text = strip_tags(html)
-        if MailgunClient().send_message(
-            to_email=recipient.email,
-            subject=subject,
-            text=text,
-            html=html,
-            tags=['forum', 'post'],
-        ):
-            sent += 1
-    return sent
+        messages.append({
+            'to_email': recipient.email,
+            'subject': subject,
+            'text': strip_tags(html),
+            'html': html,
+            'tags': ['forum', 'post'],
+        })
+    return _queue_emails(messages)
 
 
 def notify_forum_reply(reply):
@@ -346,23 +390,21 @@ def notify_forum_reply(reply):
             if _can_receive_student_email(student) and student != author:
                 recipients.append(student)
 
-    sent = 0
+    messages = []
     for recipient in recipients:
         context = {
             **context_base,
             'recipient_name': _full_name_or_username(recipient),
         }
         html = render_to_string('emails/forum_notification.html', context)
-        text = strip_tags(html)
-        if MailgunClient().send_message(
-            to_email=recipient.email,
-            subject=subject,
-            text=text,
-            html=html,
-            tags=['forum', 'reply'],
-        ):
-            sent += 1
-    return sent
+        messages.append({
+            'to_email': recipient.email,
+            'subject': subject,
+            'text': strip_tags(html),
+            'html': html,
+            'tags': ['forum', 'reply'],
+        })
+    return _queue_emails(messages)
 
 
 def notify_assignment_published(assignment):
@@ -384,9 +426,9 @@ def notify_assignment_published(assignment):
     if not enrollments.exists():
         return 0
     
-    sent_count = 0
+    messages = []
     assignment_url = None
-    
+
     # Construir URL de la tarea
     try:
         from django.urls import reverse
@@ -435,15 +477,12 @@ def notify_assignment_published(assignment):
             </html>
             """
         
-        text = strip_tags(html)
-        
-        if MailgunClient().send_message(
-            to_email=student.email,
-            subject=subject,
-            text=text,
-            html=html,
-            tags=["assignment", "published"],
-        ):
-            sent_count += 1
-    
-    return sent_count
+        messages.append({
+            "to_email": student.email,
+            "subject": subject,
+            "text": strip_tags(html),
+            "html": html,
+            "tags": ["assignment", "published"],
+        })
+
+    return _queue_emails(messages)

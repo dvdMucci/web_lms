@@ -6,6 +6,12 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+# Session compartida: reusa la conexion TCP/TLS con la API de Mailgun entre envios.
+# Antes cada mensaje abria un handshake nuevo, lo que en un envio masivo (una tarea
+# publicada a 30 alumnos) significaba 30 handshakes completos.
+_SESSION = requests.Session()
+
+
 class MailgunClient:
     def __init__(self):
         self.base_url = settings.MAILGUN_BASE_URL
@@ -35,7 +41,7 @@ class MailgunClient:
             data["o:tag"] = tags
 
         try:
-            response = requests.post(
+            response = _SESSION.post(
                 f"{self.base_url}/v3/{self.domain}/messages",
                 auth=("api", self.api_key),
                 data=data,

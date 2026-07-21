@@ -572,10 +572,10 @@ def check_storage_after_submission_file(sender, instance, created, **kwargs):
     """Verificar umbral de almacenamiento después de subir un archivo de entrega."""
     if created:
         try:
-            from core.services.storage import check_storage_threshold
-            from django.core.cache import cache
-            cache.delete('storage_usage_stats')
-            check_storage_threshold()
+            from core.services.storage import check_storage_threshold_async
+            # Suma el tamano al cache y evalua el umbral fuera del request: escanear
+            # el bucket aca bloqueaba la subida contra la red de Ashburn.
+            check_storage_threshold_async(added_bytes=instance.file.size if instance.file else 0)
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)

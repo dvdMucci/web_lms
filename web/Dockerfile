@@ -1,29 +1,68 @@
-# Usa una imagen base oficial de Python
-FROM python:3.11-slim
+# ---------------------------------------------------------------------------
+# Etapa 1: build. Compila las dependencias (mysqlclient necesita toolchain de C)
+# dentro de un venv que despues se copia entero. Asi el compilador y los headers
+# no quedan en la imagen final.
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim AS builder
 
-# Evita que Python escriba archivos .pyc
-ENV PYTHONDONTWRITEBYTECODE=1
-# Asegura que la salida de Python se muestre en la terminal sin buffer
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-# Configuración de hilos para faster-whisper
-ENV OMP_NUM_THREADS=1
-ENV OPENBLAS_NUM_THREADS=1
-ENV MKL_NUM_THREADS=1
-ENV NUMEXPR_NUM_THREADS=1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+        pkg-config \
+        default-libmysqlclient-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y git libsndfile1 ffmpeg netcat-openbsd gcc htop default-libmysqlclient-dev python3-dev pkg-config build-essential cron && rm -rf /var/lib/apt/lists/*
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Establece el directorio de trabajo dentro del contenedor
-WORKDIR /app
-
-# Copia e instala las dependencias primero para aprovechar el caché de Docker
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia el resto del código de tu aplicación al contenedor
-COPY . .
 
-# Damos permisos de ejecución
-RUN chmod +x wait-for-db.sh
+# ---------------------------------------------------------------------------
+# Etapa 2: runtime. Solo Python + la libreria cliente de MariaDB + el venv.
+#
+# La imagen anterior pesaba 10 GB porque instalaba torch (918 MB) y sus wheels de
+# nvidia (2.9 GB) para faster-whisper, que nunca se activo, mas ffmpeg, libsndfile1,
+# git, htop, build-essential y cron.
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# libmariadb3 es lo unico que mysqlclient necesita en runtime (el -dev era solo
+# para compilar). curl queda para el healthcheck del compose.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libmariadb3 \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+
+# Usuario sin privilegios. uid/gid 1001 coincide con el usuario `ubuntu` del host,
+# que es el dueno del bind mount ./web:/app y del bucket montado por s3fs (remontado
+# con uid=1001). Antes el contenedor corria como root con el bucket montado rw: una
+# ejecucion remota de codigo daba control total del almacenamiento.
+RUN groupadd --gid 1001 app && \
+    useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash app
+
+WORKDIR /app
+
+# El codigo real llega por el bind mount ./web:/app del compose; este COPY existe
+# para que la imagen sea autocontenida y se pueda correr sin el mount.
+COPY --chown=app:app . .
+
+COPY --chown=app:app entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER app
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -93,22 +93,23 @@ def login_view(request):
     if request.method == 'POST':
         form = LoginForm(request.POST, request=request)
         if form.is_valid():
+            # LoginForm ya validó usuario/clave y, si aplica, el TOTP.
+            # No redirigir a login_2fa: eso pedía el código otra vez (y consumía el TOTP).
             user = form.get_user()
+            login(request, user)
             device = user.totpdevice_set.filter(confirmed=True).first()
-            if device:
-                # Guardar el usuario en sesión y pedir el código TOTP
-                request.session['pending_2fa_user_id'] = user.pk
-                request.session['pending_2fa_backend'] = user.backend
-                return redirect('login_2fa')
+            if user.is_2fa_enabled and device:
+                otp_login(request, device)
+                details = 'Inicio de sesión exitoso (2FA verificado)'
             else:
-                login(request, user)
-                log_user_activity(
-                    action=UserActivityLog.ACTION_LOGIN,
-                    actor=user,
-                    target_user=user,
-                    details='Inicio de sesión exitoso',
-                )
-                return redirect('dashboard')
+                details = 'Inicio de sesión exitoso'
+            log_user_activity(
+                action=UserActivityLog.ACTION_LOGIN,
+                actor=user,
+                target_user=user,
+                details=details,
+            )
+            return redirect('dashboard')
     else:
         form = LoginForm()
 

@@ -7,10 +7,12 @@ from django.conf.urls.static import static
 from django.views.generic.base import RedirectView
 from django.templatetags.static import static as static_file
 from accounts.views import dashboard
+from core.views import healthz
 from courses import views as course_views
 from forums import views as forum_views
 
 urlpatterns = [
+    path('healthz', healthz, name='healthz'),
     path('favicon.ico', RedirectView.as_view(url=static_file('img/favicon.ico'), permanent=True)),
     path('admin/', admin.site.urls),
     path('', dashboard, name='dashboard'), # Redirección de la raíz al dashboard
@@ -64,4 +66,19 @@ urlpatterns = [
     path('forum/<int:post_id>/delete/', forum_views.forum_delete, name='forum_delete'),
     path('forum/<int:post_id>/pin/', forum_views.forum_pin, name='forum_pin'),
     path('forum/<int:post_id>/reply/<int:reply_id>/delete/', forum_views.reply_delete, name='forum_reply_delete'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+# /media/ NO se expone publicamente.
+#
+# Hasta 2026-07-21 esta seccion servia todo MEDIA_ROOT con django.views.static.serve
+# sin autenticacion: cualquiera podia descargar la entrega de un alumno conociendo la
+# URL, saltandose por completo los chequeos de permisos de las vistas. Lo unico que lo
+# frenaba era que los nombres son uuid4, pero una URL filtrada quedaba accesible para
+# siempre.
+#
+# Todos los archivos se sirven ahora por vistas con permisos:
+#   - entregas  -> assignments.views._submission_serve_file (alumno dueño o docente del curso)
+#   - materiales-> materials.views.MaterialDownloadView (CanViewMaterial)
+# En desarrollo local (DEBUG=True) si se sirve /media/ para comodidad.
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
