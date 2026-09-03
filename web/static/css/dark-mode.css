@@ -471,7 +471,7 @@
     color: var(--dm-text) !important;
 }
 
-/* Dashboard — tarjeta de almacenamiento (storage-card / storage-stat-panel) */
+/* Almacenamiento — tarjeta del bucket (storage-card / storage-stat-panel) */
 .storage-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;

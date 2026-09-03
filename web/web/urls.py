@@ -7,7 +7,7 @@ from django.conf.urls.static import static
 from django.views.generic.base import RedirectView
 from django.templatetags.static import static as static_file
 from accounts.views import dashboard
-from core.views import healthz
+from core.views import healthz, storage_status, storage_status_data
 from courses import views as course_views
 from forums import views as forum_views
 
@@ -17,6 +17,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', dashboard, name='dashboard'), # Redirección de la raíz al dashboard
     path('dashboard/', dashboard, name='dashboard'),
+    path('almacenamiento/', storage_status, name='storage_status'),
+    path('almacenamiento/datos/', storage_status_data, name='storage_status_data'),
     path('accounts/', include('accounts.urls')), # Incluye las URLs de la aplicación 'accounts'
     path('api/courses/', include('courses.urls')), # Incluye las URLs de la API de 'courses'
     path('api/', include('materials.urls')), # Incluye las URLs de la aplicación 'materials'

@@ -132,6 +132,19 @@ def get_storage_usage():
         }
 
 
+def get_cached_storage_usage():
+    """Devuelve el uso cacheado o None si todavia no se calculo.
+
+    Sirve para que una vista pueda pintar la pagina sin arriesgarse a disparar el
+    os.walk del bucket dentro del request.
+    """
+    return cache.get(CACHE_KEY)
+
+
+def invalidate_storage_usage_cache():
+    cache.delete(CACHE_KEY)
+
+
 def bump_cached_usage(delta_bytes):
     """Ajusta el total cacheado sin volver a escanear el bucket.
 

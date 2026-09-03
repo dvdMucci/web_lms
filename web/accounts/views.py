@@ -464,20 +464,6 @@ def dashboard(request):
         if observed.exists():
             context['observed_courses'] = observed
 
-    # Si el usuario es administrador, incluir información de almacenamiento
-    if request.user.can_manage_users():
-        try:
-            from core.services.storage import get_storage_usage
-            from core.models import StorageConfig
-
-            usage = get_storage_usage()
-            config = StorageConfig.objects.first()
-
-            context['storage_usage'] = usage
-            context['storage_config'] = config
-        except Exception:
-            pass
-
     # Mensajes no leídos del foro
     try:
         from django.db.models import Subquery, F

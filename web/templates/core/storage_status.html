@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block title %}Almacenamiento{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-hdd"></i> Almacenamiento</h1>
+        <p class="lead">Estado del bucket de Oracle OCI donde se guardan los archivos del LMS.</p>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm storage-card">
+            <div class="card-header bg-transparent border-0">
+                <h3 class="mb-0 text-white">
+                    Estado del Almacenamiento - Bucket Oracle OCI
+                    <span id="storage-badge" class="badge d-none ms-2"></span>
+                </h3>
+            </div>
+            <div class="card-body">
+                <div id="storage-loading" class="d-flex align-items-center gap-2 mb-4">
+                    <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                    <span>Calculando el uso del bucket… puede demorar unos segundos.</span>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div class="storage-stat-panel">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Total</div>
+                            <div style="font-size: 2em; font-weight: bold;" id="storage-total">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div class="storage-stat-panel">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Usado</div>
+                            <div style="font-size: 2em; font-weight: bold;" id="storage-used">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div class="storage-stat-panel">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Espacio Disponible</div>
+                            <div style="font-size: 2em; font-weight: bold;" id="storage-available">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="storage-stat-panel">
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 5px;">Porcentaje Usado</div>
+                            <div style="font-size: 2em; font-weight: bold;" id="storage-percent">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="storage-progress-track">
+                        <div id="storage-bar" style="height: 100%; width: 0%; background-color: #28a745; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; transition: width 0.3s ease;"></div>
+                    </div>
+                    <p class="mt-2 mb-0" id="storage-summary" style="opacity: 0.9; font-size: 0.9em;"></p>
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" id="storage-refresh" class="btn btn-light">
+                        <i class="fas fa-sync"></i> Recalcular
+                    </button>
+                    <a href="/admin/core/storageconfig/" class="btn btn-light">
+                        <i class="fas fa-cog"></i> Gestionar Almacenamiento
+                    </a>
+                    <a href="/admin/core/storageconfig/storage-usage/" class="btn btn-light">
+                        <i class="fas fa-chart-bar"></i> Ver Detalles
+                    </a>
+                    <span id="storage-threshold" class="badge bg-warning text-dark align-self-center d-none"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ initial_data|json_script:"storage-initial" }}
+<script>
+(function () {
+    const dataUrl = "{% url 'storage_status_data' %}";
+    const initial = JSON.parse(document.getElementById('storage-initial').textContent);
+    const loading = document.getElementById('storage-loading');
+    const refreshBtn = document.getElementById('storage-refresh');
+
+    function colorFor(percent) {
+        if (percent >= 90) return '#dc3545';
+        if (percent >= 70) return '#ffc107';
+        return '#28a745';
+    }
+
+    function render(usage, threshold) {
+        document.getElementById('storage-total').textContent = usage.total_gb.toFixed(0) + ' GB';
+        document.getElementById('storage-used').textContent = usage.used_gb.toFixed(2) + ' GB';
+        document.getElementById('storage-available').textContent = usage.available_gb.toFixed(2) + ' GB';
+        document.getElementById('storage-percent').textContent = usage.used_percent.toFixed(1) + '%';
+        document.getElementById('storage-summary').textContent =
+            usage.used_gb.toFixed(2) + ' GB de ' + usage.total_gb.toFixed(0) + ' GB utilizados';
+
+        const bar = document.getElementById('storage-bar');
+        bar.style.width = usage.used_percent + '%';
+        bar.style.backgroundColor = colorFor(usage.used_percent);
+        bar.textContent = usage.used_percent >= 5 ? usage.used_percent.toFixed(1) + '%' : '';
+
+        const badge = document.getElementById('storage-badge');
+        if (usage.used_percent >= 90) {
+            badge.className = 'badge bg-danger ms-2';
+            badge.textContent = 'Crítico';
+        } else if (usage.used_percent >= 70) {
+            badge.className = 'badge bg-warning text-dark ms-2';
+            badge.textContent = 'Alerta';
+        } else {
+            badge.className = 'badge d-none ms-2';
+        }
+
+        const thresholdEl = document.getElementById('storage-threshold');
+        if (threshold !== null && usage.used_percent >= threshold) {
+            thresholdEl.classList.remove('d-none');
+            thresholdEl.textContent = 'Umbral alcanzado (' + threshold + '%)';
+        } else {
+            thresholdEl.classList.add('d-none');
+        }
+    }
+
+    function load(force) {
+        loading.classList.remove('d-none');
+        loading.querySelector('span').textContent = 'Calculando el uso del bucket… puede demorar unos segundos.';
+        refreshBtn.disabled = true;
+        fetch(dataUrl + (force ? '?refresh=1' : ''), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.usage.error) {
+                    loading.querySelector('span').textContent = 'No se pudo leer el bucket: ' + data.usage.error;
+                    return;
+                }
+                render(data.usage, data.alert_threshold_percent);
+                loading.classList.add('d-none');
+            })
+            .catch(function () {
+                loading.querySelector('span').textContent = 'No se pudo obtener el uso del almacenamiento.';
+            })
+            .finally(function () { refreshBtn.disabled = false; });
+    }
+
+    refreshBtn.addEventListener('click', function () { load(true); });
+
+    if (initial.usage) {
+        render(initial.usage, initial.alert_threshold_percent);
+        loading.classList.add('d-none');
+    } else {
+        load(false);
+    }
+})();
+</script>
+{% endblock %}
