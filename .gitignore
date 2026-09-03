@@ -209,3 +209,7 @@ web/.dockerenv
 *.bak
 *.bak.*
 .maintenance_on
+
+# Contexto local para Claude Code (no versionar — repo público)
+web/CLAUDE.md
+CLAUDE.md
