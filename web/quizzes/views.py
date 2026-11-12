@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -29,8 +30,10 @@ from .utils import (
     DONT_KNOW_POST_VALUE,
     DONT_KNOW_SHUFFLE_TOKEN,
     build_exam_attempt_review_rows,
+    copy_exam_questions,
     ensure_attempt_shuffle_and_answers,
     exam_has_submitted_attempts,
+    recuperatorio_candidate_rows,
     resolve_student_exam_access,
 )
 
@@ -190,6 +193,7 @@ def exam_edit(request, course_id, unit_id, tema_id, exam_id):
                 )
     else:
         form = ThemeExamForm(instance=exam)
+    title = 'Editar recuperatorio' if exam.recuperatorio_of_id else 'Editar examen'
     return render(
         request,
         'quizzes/exam_form.html',
@@ -199,7 +203,7 @@ def exam_edit(request, course_id, unit_id, tema_id, exam_id):
             'unit': unit,
             'tema': tema,
             'exam': exam,
-            'title': 'Editar examen',
+            'title': title,
         },
     )
 
@@ -256,6 +260,14 @@ def exam_manage(request, course_id, unit_id, tema_id, exam_id):
         .order_by('last_name', 'first_name', 'username')
         .distinct()
     )
+    source_exam = exam.recuperatorio_of if exam.recuperatorio_of_id else exam
+    recuperatorio = None
+    if not exam.recuperatorio_of_id:
+        recuperatorio = exam.recuperatorios.order_by('pk').first()
+    eligible_students, excluded_students = recuperatorio_candidate_rows(source_exam)
+    if exam.recuperatorio_of_id:
+        eligible_ids = [row['student'].pk for row in eligible_students]
+        pending_students = pending_students.filter(pk__in=eligible_ids)
     return render(
         request,
         'quizzes/exam_manage.html',
@@ -268,7 +280,74 @@ def exam_manage(request, course_id, unit_id, tema_id, exam_id):
             'locked': locked,
             'attempts': attempts,
             'pending_students': pending_students,
+            'recuperatorio': recuperatorio,
+            'eligible_students': eligible_students,
+            'excluded_students': excluded_students,
         },
+    )
+
+
+@login_required
+@require_http_methods(['POST'])
+def exam_create_recuperatorio(request, course_id, unit_id, tema_id, exam_id):
+    course, unit, tema, exam = _get_exam(course_id, unit_id, tema_id, exam_id)
+    if not exam.can_be_managed_by(request.user):
+        messages.error(request, 'No tenés permiso.')
+        return redirect('course_detail', course_id=course_id)
+    if exam.recuperatorio_of_id:
+        messages.error(request, 'No se puede crear un recuperatorio de otro recuperatorio.')
+        return redirect(
+            'quizzes:exam_manage',
+            course_id=course_id,
+            unit_id=unit_id,
+            tema_id=tema_id,
+            exam_id=exam_id,
+        )
+
+    with transaction.atomic():
+        exam = ThemeExam.objects.select_for_update().get(pk=exam.pk)
+        existing = exam.recuperatorios.order_by('pk').first()
+        if existing:
+            messages.info(request, 'Este examen ya tiene un recuperatorio.')
+            return redirect(
+                'quizzes:exam_manage',
+                course_id=course_id,
+                unit_id=unit_id,
+                tema_id=tema_id,
+                exam_id=existing.pk,
+            )
+        now = timezone.now()
+        title = f'Recuperatorio: {exam.title}'
+        if len(title) > 200:
+            title = title[:197] + '...'
+        recuperatorio = ThemeExam(
+            title=title,
+            description=exam.description,
+            tema=tema,
+            course=course,
+            created_by=request.user,
+            is_published=False,
+            available_from=now,
+            available_until=now + timedelta(days=7),
+            attendance_date=None,
+            max_focus_violations=exam.max_focus_violations,
+            recuperatorio_of=exam,
+        )
+        recuperatorio.save()
+        copy_exam_questions(exam, recuperatorio)
+
+    messages.success(
+        request,
+        f'Recuperatorio creado con las preguntas de «{exam.title}». '
+        'Ajustá las fechas y las preguntas, y publicalo cuando esté listo. '
+        'Solo lo van a ver quienes no entregaron o sacaron menos de 7.',
+    )
+    return redirect(
+        'quizzes:exam_edit',
+        course_id=course_id,
+        unit_id=unit_id,
+        tema_id=tema_id,
+        exam_id=recuperatorio.pk,
     )
 
 

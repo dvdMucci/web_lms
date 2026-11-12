@@ -5,6 +5,9 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+# Nota mínima para aprobar. El recuperatorio es para quien no entregó o sacó menos.
+RECUPERATORIO_PASSING_SCORE = Decimal('7')
+
 
 class ThemeExam(models.Model):
     """Examen de opción múltiple asociado a un tema."""
@@ -48,6 +51,16 @@ class ThemeExam(models.Model):
         help_text='Cantidad de veces que el alumno puede salir de la pantalla del examen '
                   'antes de que se envíe automáticamente. 0 = sin límite.',
     )
+    recuperatorio_of = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='recuperatorios',
+        verbose_name='Recuperatorio de',
+        help_text='Si está definido, este examen es el recuperatorio de otro. '
+        'Solo pueden rendirlo quienes no entregaron el original o tuvieron nota menor a 7.',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
 
@@ -71,6 +84,16 @@ class ThemeExam(models.Model):
                 return
             if tema.unit.course_id != self.course_id:
                 raise ValidationError('El tema debe pertenecer al curso indicado.')
+        if self.recuperatorio_of_id:
+            source = self.recuperatorio_of
+            if source is None:
+                return
+            if source.recuperatorio_of_id:
+                raise ValidationError('No se puede crear un recuperatorio de otro recuperatorio.')
+            if self.tema_id and source.tema_id != self.tema_id:
+                raise ValidationError('El recuperatorio debe pertenecer al mismo tema que el examen original.')
+            if self.course_id and source.course_id != self.course_id:
+                raise ValidationError('El recuperatorio debe pertenecer al mismo curso que el examen original.')
 
     def save(self, *args, **kwargs):
         if self.tema_id is not None and self.course_id is not None:
@@ -87,6 +110,9 @@ class ThemeExam(models.Model):
     def is_available_now(self):
         now = timezone.now()
         return self.available_from <= now <= self.available_until
+
+    def is_recuperatorio(self):
+        return self.recuperatorio_of_id is not None
 
     def question_count(self):
         if self.pk is None:

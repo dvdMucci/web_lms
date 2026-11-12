@@ -13,6 +13,7 @@
         <p class="text-muted small mb-0">
             Ventana para alumnos: {{ exam.available_from|date:"d/m/Y H:i" }} — {{ exam.available_until|date:"d/m/Y H:i" }}
             {% if exam.is_published %}<span class="badge bg-success">Publicado</span>{% else %}<span class="badge bg-secondary">Borrador</span>{% endif %}
+            {% if exam.recuperatorio_of_id %}<span class="badge bg-info text-dark">Recuperatorio</span>{% endif %}
             {% if exam.attendance_date %}
             <span class="badge bg-info text-dark ms-1">Asistencia {{ exam.attendance_date|date:"d/m/Y" }}</span>
             {% endif %}
@@ -27,6 +28,70 @@
         <a href="{% url 'quizzes:question_create' course.id unit.id tema.id exam.id %}" class="btn btn-success btn-sm"><i class="fas fa-plus"></i> Pregunta</a>
         {% endif %}
         <a href="{% url 'quizzes:exam_delete' course.id unit.id tema.id exam.id %}" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Eliminar</a>
+    </div>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="fas fa-redo"></i> Recuperatorio</h5>
+        <div>
+            {% if exam.recuperatorio_of_id %}
+            <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.recuperatorio_of_id %}" class="btn btn-sm btn-outline-secondary">Ver examen original</a>
+            {% elif recuperatorio %}
+            <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id recuperatorio.id %}" class="btn btn-sm btn-info">Abrir recuperatorio</a>
+            {% else %}
+            <form method="post" action="{% url 'quizzes:exam_create_recuperatorio' course.id unit.id tema.id exam.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-info">
+                    <i class="fas fa-plus"></i> Crear recuperatorio
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        {% if exam.recuperatorio_of_id %}
+        <p class="mb-2">
+            Este es el recuperatorio de «{{ exam.recuperatorio_of.title }}».
+            Tiene las mismas opciones que un examen (fechas, asistencia, preguntas, Excel),
+            pero <strong>no lo pueden rendir quienes aprobaron</strong> el original con 7 o más.
+        </p>
+        {% else %}
+        <p class="mb-2">
+            El recuperatorio se edita como un examen aparte: fechas, asistencia, preguntas e importación Excel.
+            Solo lo ven y lo pueden rendir los alumnos que <strong>no entregaron</strong> o cuya nota es <strong>menor a 7</strong>.
+            {% if recuperatorio %}
+            Estado: {% if recuperatorio.is_published %}<span class="badge bg-success">Publicado</span>{% else %}<span class="badge bg-secondary">Borrador</span>{% endif %}
+            {% else %}
+            Al crearlo se copian las preguntas actuales para que puedas modificarlas antes de publicar.
+            {% endif %}
+        </p>
+        {% endif %}
+        <p class="small text-muted mb-2">Habilitados ahora: {{ eligible_students|length }}. Aprobaron (no pueden): {{ excluded_students|length }}.</p>
+        {% if eligible_students %}
+        <ul class="mb-2">
+            {% for row in eligible_students %}
+            <li>
+                {{ row.student.get_full_name|default:row.student.username }}
+                {% if row.attempt and row.attempt.score is not None %}
+                <span class="text-muted small">— nota {{ row.attempt.score|floatformat:2 }}</span>
+                {% else %}
+                <span class="text-muted small">— sin entregar</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small mb-2">Nadie está habilitado: todos los inscriptos aprobaron, o no hay alumnos en el curso.</p>
+        {% endif %}
+        {% if excluded_students %}
+        <p class="small mb-1"><strong>No pueden rendirlo</strong></p>
+        <ul class="mb-0 small text-muted">
+            {% for row in excluded_students %}
+            <li>{{ row.student.get_full_name|default:row.student.username }} — nota {{ row.attempt.score|floatformat:2 }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
 </div>
 

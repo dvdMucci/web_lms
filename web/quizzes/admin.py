@@ -30,8 +30,10 @@ class ThemeExamAdmin(admin.ModelAdmin):
         'is_published',
         'available_from',
         'available_until',
+        'recuperatorio_of',
     )
     list_filter = ('is_published', 'course')
+    raw_id_fields = ('recuperatorio_of',)
     inlines = [ExamQuestionInline]
 
 

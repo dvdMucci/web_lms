@@ -26,6 +26,11 @@ urlpatterns = [
         name='exam_edit',
     ),
     path(
+        'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/recuperatorio/',
+        views.exam_create_recuperatorio,
+        name='exam_create_recuperatorio',
+    ),
+    path(
         'courses/<int:course_id>/units/<int:unit_id>/temas/<int:tema_id>/exams/<int:exam_id>/delete/',
         views.exam_delete,
         name='exam_delete',

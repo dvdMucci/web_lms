@@ -171,7 +171,12 @@
                     <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2">
                             <div>
-                                <h6 class="mb-1">{{ exam.title }}</h6>
+                                <h6 class="mb-1">
+                                    {{ exam.title }}
+                                    {% if exam.recuperatorio_of_id %}
+                                    <span class="badge bg-info text-dark">Recuperatorio</span>
+                                    {% endif %}
+                                </h6>
                                 <small class="text-muted">
                                     <i class="fas fa-clock"></i>
                                     {{ exam.available_from|date:"d/m/Y H:i" }} — {{ exam.available_until|date:"d/m/Y H:i" }}

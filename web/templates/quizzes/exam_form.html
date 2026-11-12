@@ -9,6 +9,14 @@
     </ol>
 </nav>
 
+{% if exam and exam.recuperatorio_of_id %}
+<div class="alert alert-info col-lg-8">
+    Recuperatorio de «{{ exam.recuperatorio_of.title }}».
+    Las fechas, la asistencia y el resto de opciones son las de este examen.
+    Los alumnos que aprobaron el original (nota 7 o más) no lo van a ver.
+</div>
+{% endif %}
+
 <div class="card shadow col-lg-8">
     <div class="card-body">
         <form method="post">

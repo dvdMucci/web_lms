@@ -24,11 +24,16 @@
     <a href="{% url 'quizzes:exam_manage' course.id unit.id tema.id exam.id %}" class="list-group-item list-group-item-action">
         <div class="d-flex w-100 justify-content-between">
             <h5 class="mb-1">{{ exam.title }}</h5>
-            {% if exam.is_published %}
-            <span class="badge bg-success">Publicado</span>
-            {% else %}
-            <span class="badge bg-secondary">Borrador</span>
-            {% endif %}
+            <span>
+                {% if exam.recuperatorio_of_id %}
+                <span class="badge bg-info text-dark">Recuperatorio</span>
+                {% endif %}
+                {% if exam.is_published %}
+                <span class="badge bg-success">Publicado</span>
+                {% else %}
+                <span class="badge bg-secondary">Borrador</span>
+                {% endif %}
+            </span>
         </div>
         <p class="mb-1 text-muted small">{{ exam.description|truncatewords:15 }}</p>
         <small class="text-muted">

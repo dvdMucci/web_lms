@@ -3,7 +3,13 @@ import secrets
 
 from django.db import transaction
 
-from .models import ExamAttempt, ExamAttemptAnswer
+from .models import (
+    RECUPERATORIO_PASSING_SCORE,
+    ExamAnswerOption,
+    ExamAttempt,
+    ExamAttemptAnswer,
+    ExamQuestion,
+)
 
 # Token en shuffle_state JSON (mezclado con ids de opción como strings).
 DONT_KNOW_SHUFFLE_TOKEN = 'dk'
@@ -13,6 +19,80 @@ DONT_KNOW_POST_VALUE = '__dk__'
 
 def exam_has_submitted_attempts(exam):
     return exam.attempts.filter(submitted_at__isnull=False).exists()
+
+
+def student_needs_recuperatorio(student, source_exam) -> bool:
+    """
+    True si el alumno no entregó el examen original o su nota es menor a 7.
+    Una nota de 7 o más no habilita el recuperatorio.
+    """
+    source_id = getattr(source_exam, 'pk', source_exam)
+    attempt = (
+        ExamAttempt.objects.filter(
+            exam_id=source_id,
+            student=student,
+            submitted_at__isnull=False,
+        )
+        .only('score')
+        .first()
+    )
+    if attempt is None or attempt.score is None:
+        return True
+    return attempt.score < RECUPERATORIO_PASSING_SCORE
+
+
+def recuperatorio_candidate_rows(source_exam):
+    """
+    Alumnos inscriptos divididos en quienes pueden rendir el recuperatorio
+    y quienes aprobaron (nota 7 o más).
+    """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    students = list(
+        User.objects.filter(
+            enrollments__course=source_exam.course,
+            enrollments__status='approved',
+        )
+        .order_by('last_name', 'first_name', 'username')
+        .distinct()
+    )
+    attempts = {
+        attempt.student_id: attempt
+        for attempt in ExamAttempt.objects.filter(
+            exam=source_exam,
+            submitted_at__isnull=False,
+            student_id__in=[student.id for student in students],
+        )
+    }
+    eligible = []
+    excluded = []
+    for student in students:
+        attempt = attempts.get(student.id)
+        row = {'student': student, 'attempt': attempt}
+        if attempt is None or attempt.score is None or attempt.score < RECUPERATORIO_PASSING_SCORE:
+            eligible.append(row)
+        else:
+            excluded.append(row)
+    return eligible, excluded
+
+
+def copy_exam_questions(source_exam, target_exam):
+    """Copia preguntas y opciones. El examen destino queda editable (sin intentos)."""
+    questions = source_exam.questions.prefetch_related('answer_options').order_by('order', 'id')
+    for question in questions:
+        copied = ExamQuestion.objects.create(
+            exam=target_exam,
+            text=question.text,
+            order=question.order,
+            correct_explanation=question.correct_explanation,
+        )
+        for option in question.answer_options.order_by('id'):
+            ExamAnswerOption.objects.create(
+                question=copied,
+                text=option.text,
+                is_correct=option.is_correct,
+            )
 
 
 def _options_map_needs_rebuild(options_map, questions) -> bool:
@@ -67,6 +147,13 @@ def resolve_student_exam_access(user, course, tema, exam):
         return False, (
             'Este examen solo puede realizarse si estuviste presente el día '
             f'{exam.attendance_date.strftime("%d/%m/%Y")} según la asistencia del curso.'
+        )
+    if exam.recuperatorio_of_id and not student_needs_recuperatorio(
+        user, exam.recuperatorio_of_id
+    ):
+        return False, (
+            'Este recuperatorio es solo para quienes no entregaron el examen '
+            'o tuvieron una nota menor a 7. Si aprobaste, no podés rendirlo.'
         )
     return True, None
 

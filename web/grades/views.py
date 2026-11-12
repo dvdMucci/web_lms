@@ -11,7 +11,7 @@ from assignments.models import Assignment
 from assignments.services import get_effective_submission, map_effective_submissions
 from courses.models import Course, Enrollment
 from courses.utils import can_view_course_as_teacher
-from quizzes.models import ExamAttempt, ThemeExam
+from quizzes.models import RECUPERATORIO_PASSING_SCORE, ExamAttempt, ThemeExam
 
 from .forms import AcademicSituationForm
 from .models import AcademicSituation
@@ -139,7 +139,7 @@ def _build_course_grade_matrix(course, students):
             {
                 'key': f'e-{exam.id}',
                 'kind': 'exam',
-                'kind_label': 'Examen',
+                'kind_label': 'Recuperatorio' if exam.recuperatorio_of_id else 'Examen',
                 'title': exam.title,
                 'short_title': _short_title(exam.title),
                 'object': exam,
@@ -181,9 +181,24 @@ def _build_course_grade_matrix(course, students):
         for attempt in attempts:
             # keep one attempt per (exam, student); model is typically unique
             attempt_map[(attempt.exam_id, attempt.student_id)] = attempt
+        source_ids = [exam.recuperatorio_of_id for exam in exams if exam.recuperatorio_of_id]
+        source_scores = {}
+        if source_ids:
+            for attempt in ExamAttempt.objects.filter(
+                exam_id__in=source_ids,
+                student_id__in=student_ids,
+                submitted_at__isnull=False,
+            ):
+                source_scores[(attempt.exam_id, attempt.student_id)] = attempt.score
         for exam in exams:
             key = f'e-{exam.id}'
             for sid in student_ids:
+                if exam.recuperatorio_of_id:
+                    score = source_scores.get((exam.recuperatorio_of_id, sid))
+                    delivered = (exam.recuperatorio_of_id, sid) in source_scores
+                    if delivered and score is not None and score >= RECUPERATORIO_PASSING_SCORE:
+                        grades_by_student[sid][key] = _empty_cell('na')
+                        continue
                 grades_by_student[sid][key] = _cell_from_attempt(
                     attempt_map.get((exam.id, sid))
                 )
@@ -317,6 +332,18 @@ def _build_evaluation_rows(course, student):
     }
 
     for exam in exams:
+        if exam.recuperatorio_of_id:
+            source_attempt = ExamAttempt.objects.filter(
+                exam_id=exam.recuperatorio_of_id,
+                student=student,
+                submitted_at__isnull=False,
+            ).only('score').first()
+            if (
+                source_attempt is not None
+                and source_attempt.score is not None
+                and source_attempt.score >= RECUPERATORIO_PASSING_SCORE
+            ):
+                continue
         attempt = attempts.get(exam.id)
         has_grade = attempt is not None and attempt.score is not None
         if not has_grade:
@@ -324,7 +351,7 @@ def _build_evaluation_rows(course, student):
         unit = exam.tema.unit if exam.tema_id else None
         rows.append({
             'kind': 'exam',
-            'kind_label': 'Examen',
+            'kind_label': 'Recuperatorio' if exam.recuperatorio_of_id else 'Examen',
             'title': exam.title,
             'unit': unit,
             'tema': exam.tema,

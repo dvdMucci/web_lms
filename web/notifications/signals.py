@@ -323,12 +323,28 @@ def on_exam_published(sender, instance, created, **kwargs):
                 course=course, status='approved'
             ).select_related('student')
 
+            if instance.recuperatorio_of_id:
+                from quizzes.utils import student_needs_recuperatorio
+                title = f'Recuperatorio disponible: "{instance.title}"'
+                message = (
+                    f'Se publicó un recuperatorio en {course.title} — {tema.title}. '
+                    'Es para quienes no entregaron o tuvieron una nota menor a 7.'
+                )
+            else:
+                student_needs_recuperatorio = None
+                title = f'Examen disponible: "{instance.title}"'
+                message = f'Se publicó un nuevo examen en {course.title} — {tema.title}.'
+
             for enrollment in enrolled_students:
+                if student_needs_recuperatorio is not None and not student_needs_recuperatorio(
+                    enrollment.student, instance.recuperatorio_of_id
+                ):
+                    continue
                 create_notification(
                     user=enrollment.student,
                     notification_type='exam',
-                    title=f'Examen disponible: "{instance.title}"',
-                    message=f'Se publicó un nuevo examen en {course.title} — {tema.title}.',
+                    title=title,
+                    message=message,
                     url=url,
                 )
     except Exception:

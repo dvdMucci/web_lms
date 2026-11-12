@@ -293,7 +293,7 @@ def tema_detail(request, course_id, unit_id, tema_id):
         ).order_by('due_date', 'created_at')
 
     from quizzes.models import ThemeExam
-    from quizzes.utils import resolve_student_exam_access
+    from quizzes.utils import resolve_student_exam_access, student_needs_recuperatorio
 
     if is_manager:
         theme_exams_qs = ThemeExam.objects.filter(tema=tema).order_by('available_from', 'pk')
@@ -311,6 +311,12 @@ def tema_detail(request, course_id, unit_id, tema_id):
         ).order_by('available_from', 'pk')
         theme_exam_rows = []
         for e in theme_exams_qs:
+            if (
+                request.user.is_student()
+                and e.recuperatorio_of_id
+                and not student_needs_recuperatorio(request.user, e.recuperatorio_of_id)
+            ):
+                continue
             ok, msg = resolve_student_exam_access(request.user, course, tema, e)
             theme_exam_rows.append(
                 {
